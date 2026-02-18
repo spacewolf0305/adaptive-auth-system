@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adaptive Auth — Login</title>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #e0e0e0;
+            gap: 32px;
+            padding: 24px;
+            flex-wrap: wrap;
+        }
+
+        .card {
+            width: 420px;
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 20px;
+            padding: 48px 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .logo {
+            text-align: center;
+            font-size: 42px;
+            margin-bottom: 8px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #fff;
+        }
+
+        .subtitle {
+            text-align: center;
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 32px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 6px;
+            color: #bbb;
+        }
+
+        input[type=text],
+        input[type=password],
+        select {
+            width: 100%;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.07);
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus,
+        select:focus {
+            border-color: #7c5cfc;
+        }
+
+        select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #fff;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn-login {
+            background: linear-gradient(135deg, #7c5cfc, #a855f7);
+        }
+
+        .btn-attack {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .flash {
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .flash.danger {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #fca5a5;
+        }
+
+        .flash.success {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            color: #86efac;
+        }
+
+        .flash.warning {
+            background: rgba(251, 191, 36, 0.2);
+            border: 1px solid rgba(251, 191, 36, 0.4);
+            color: #fde68a;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .footer a {
+            color: #7c5cfc;
+            text-decoration: none;
+        }
+
+        /* ── Attacker Panel ── */
+        .attacker-card {
+            border-color: rgba(239, 68, 68, 0.3);
+            background: rgba(239, 68, 68, 0.04);
+        }
+
+        .attacker-card h1 {
+            color: #fca5a5;
+        }
+
+        .attacker-card .subtitle {
+            color: #f87171;
+        }
+
+        .toggle-btn {
+            display: block;
+            margin: 20px auto 0;
+            padding: 10px 24px;
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 10px;
+            color: #fca5a5;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            width: auto;
+            transition: all 0.2s;
+        }
+
+        .toggle-btn:hover {
+            background: rgba(239, 68, 68, 0.25);
+            transform: none;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .row>* {
+            flex: 1;
+        }
+
+        .result-box {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            font-size: 13px;
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+
+        .result-box .risk-label {
+            font-size: 28px;
+            font-weight: 700;
+            text-align: center;
+            margin: 8px 0;
+        }
+
+        .result-box .detail {
+            color: #888;
+            line-height: 1.6;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 900px) {
+            body {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ── Normal Login Card ── -->
+    <div class="card">
+        <div class="logo">🛡️</div>
+        <h1>Adaptive Authentication</h1>
+        <p class="subtitle">AI-powered risk-based login system</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endwith %}
+
+        <form method="POST" action="/login">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" placeholder="admin" autocomplete="username" required>
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password"
+                required>
+            <button type="submit" class="btn-login">Sign In</button>
+        </form>
+
+        <div class="footer">
+            Protected by <a href="/dashboard">AI Threat Engine</a>
+        </div>
+    </div>
+
+    <!-- ── Attacker Simulation Panel ── -->
+    <div class="card attacker-card">
+        <div class="logo">☠️</div>
+        <h1>Attacker Simulator</h1>
+        <p class="subtitle">Simulate a login from any location to test the AI</p>
+
+        <form id="attackForm" onsubmit="return sendAttack(event)">
+            <label>Spoofed IP Address</label>
+            <input type="text" id="atk_ip" placeholder="185.220.101.42" value="">
+
+            <div class="row">
+                <div>
+                    <label>Country</label>
+                    <select id="atk_country">
+                        <option value="Russia">🇷🇺 Russia</option>
+                        <option value="North Korea">🇰🇵 North Korea</option>
+                        <option value="China">🇨🇳 China</option>
+                        <option value="Iran">🇮🇷 Iran</option>
+                        <option value="Somalia">🇸🇴 Somalia</option>
+                        <option value="Ukraine">🇺🇦 Ukraine</option>
+                        <option value="Nigeria">🇳🇬 Nigeria</option>
+                        <option value="Brazil">🇧🇷 Brazil</option>
+                        <option value="United States">🇺🇸 United States</option>
+                        <option value="Germany">🇩🇪 Germany</option>
+                        <option value="India">🇮🇳 India</option>
+                        <option value="Japan">🇯🇵 Japan</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Device Type</label>
+                    <select id="atk_device">
+                        <option value="desktop">💻 Desktop</option>
+                        <option value="mobile">📱 Mobile</option>
+                        <option value="tablet">📟 Tablet</option>
+                        <option value="iot_device">🤖 IoT Device</option>
+                        <option value="smart_tv">📺 Smart TV</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row">
+                <div>
+                    <label>Threat Score (0–100)</label>
+                    <input type="text" id="atk_threat" placeholder="85" value="85">
+                </div>
+                <div>
+                    <label>Distance (km)</label>
+                    <input type="text" id="atk_distance" placeholder="8000" value="8000">
+                </div>
+            </div>
+
+            <label>Username to attack</label>
+            <input type="text" id="atk_user" value="admin">
+            <label>Password to try</label>
+            <input type="text" id="atk_pass" value="admin123">
+
+            <button type="submit" class="btn-attack">⚡ Launch Attack</button>
+        </form>
+
+        <div id="resultBox" class="result-box">
+            <div class="risk-label" id="resultLabel"></div>
+            <div class="detail" id="resultDetail"></div>
+        </div>
+
+        <button class="toggle-btn" onclick="randomizeAttack()">🎲 Randomize Attack Parameters</button>
+
+        <div class="footer" style="margin-top:16px;">
+            Watch results live at <a href="/dashboard" target="_blank">/dashboard</a>
+        </div>
+    </div>
+
+    <script>
+        // Random IP generator
+        function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+        function randIP() { return `${randInt(1, 223)}.${randInt(0, 255)}.${randInt(0, 255)}.${randInt(1, 254)}`; }
+
+        // Set a random IP on load
+        document.getElementById('atk_ip').value = randIP();
+
+        const COUNTRIES = ["Russia", "North Korea", "China", "Iran", "Somalia", "Ukraine", "Nigeria", "Brazil", "United States", "Germany", "India", "Japan"];
+        const DEVICES = ["desktop", "mobile", "tablet", "iot_device", "smart_tv"];
+
+        function randomizeAttack() {
+            document.getElementById('atk_ip').value = randIP();
+            const sel = document.getElementById('atk_country');
+            sel.value = COUNTRIES[randInt(0, COUNTRIES.length - 1)];
+            const dev = document.getElementById('atk_device');
+            dev.value = DEVICES[randInt(0, DEVICES.length - 1)];
+            document.getElementById('atk_threat').value = randInt(20, 100);
+            document.getElementById('atk_distance').value = randInt(100, 14000);
+        }
+
+        async function sendAttack(e) {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type=submit]');
+            btn.textContent = '⏳ Attacking...';
+            btn.disabled = true;
+
+            const form = new FormData();
+            form.append('username', document.getElementById('atk_user').value);
+            form.append('password', document.getElementById('atk_pass').value);
+            form.append('sim_ip', document.getElementById('atk_ip').value);
+            form.append('sim_country', document.getElementById('atk_country').value);
+            form.append('sim_region', 'Simulated');
+            form.append('sim_device', document.getElementById('atk_device').value);
+            form.append('sim_threat', document.getElementById('atk_threat').value);
+            form.append('sim_distance', document.getElementById('atk_distance').value);
+
+            try {
+                const resp = await fetch('/login', {
+                    method: 'POST',
+                    body: form,
+                    redirect: 'manual'  // don't follow redirects
+                });
+
+                const box = document.getElementById('resultBox');
+                const label = document.getElementById('resultLabel');
+                const detail = document.getElementById('resultDetail');
+                box.style.display = 'block';
+
+                const ip = document.getElementById('atk_ip').value;
+                const country = document.getElementById('atk_country').value;
+                const threat = document.getElementById('atk_threat').value;
+                const dist = document.getElementById('atk_distance').value;
+
+                if (resp.status === 403) {
+                    label.innerHTML = '🔴 BLOCKED';
+                    label.style.color = '#ef4444';
+                    detail.innerHTML = `The AI flagged this as <b>high risk</b> and blocked the login.<br>
+                        IP: ${ip} | Country: ${country}<br>
+                        Threat: ${threat} | Distance: ${dist} km`;
+                } else if (resp.status === 0 || resp.type === 'opaqueredirect') {
+                    // redirect = could be MFA or ALLOW
+                    label.innerHTML = '🟡 MFA or 🟢 ALLOW';
+                    label.style.color = '#fbbf24';
+                    detail.innerHTML = `The server responded with a redirect (MFA challenge or allowed).<br>
+                        IP: ${ip} | Country: ${country}<br>
+                        Threat: ${threat} | Distance: ${dist} km<br>
+                        <b>Check the <a href="/dashboard" target="_blank">dashboard</a> for the exact action.</b>`;
+                } else if (resp.status === 401) {
+                    label.innerHTML = '🟠 DENIED';
+                    label.style.color = '#f97316';
+                    detail.innerHTML = `Wrong credentials — login denied.<br>
+                        IP: ${ip} | Country: ${country}`;
+                } else {
+                    label.innerHTML = '🟢 ALLOWED';
+                    label.style.color = '#22c55e';
+                    detail.innerHTML = `Low risk — login permitted.<br>
+                        IP: ${ip} | Country: ${country}<br>
+                        Threat: ${threat} | Distance: ${dist} km`;
+                }
+
+                // Randomize IP for next attack
+                document.getElementById('atk_ip').value = randIP();
+
+            } catch (err) {
+                alert('Connection error: ' + err.message);
+            }
+
+            btn.textContent = '⚡ Launch Attack';
+            btn.disabled = false;
+        }
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adaptive Auth — Live Threat Dashboard</title>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #06060f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        /* ── Top Bar ── */
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 28px;
+            background: linear-gradient(90deg, rgba(124, 92, 252, 0.08), rgba(239, 68, 68, 0.06));
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .topbar h1 {
+            font-size: 17px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .topbar .live-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #22c55e;
+            animation: pulse 1.5s infinite;
+            display: inline-block;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+            }
+
+            50% {
+                opacity: 0.7;
+                box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+            }
+        }
+
+        .topbar .links {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .topbar .links a {
+            color: #7c5cfc;
+            text-decoration: none;
+            font-size: 13px;
+        }
+
+        .btn-sm {
+            padding: 6px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.06);
+            color: #aaa;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-sm:hover {
+            background: rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        /* ── Summary Cards ── */
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            padding: 20px 28px 0;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            transition: transform 0.15s, border-color 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .stat-card .label {
+            font-size: 10px;
+            color: #666;
+            margin-top: 3px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+        }
+
+        .stat-card .icon {
+            font-size: 14px;
+            position: absolute;
+            top: 10px;
+            right: 12px;
+            opacity: 0.5;
+        }
+
+        .threat-LOW {
+            color: #22c55e !important;
+        }
+
+        .threat-MEDIUM {
+            color: #fbbf24 !important;
+        }
+
+        .threat-HIGH {
+            color: #f97316 !important;
+        }
+
+        .threat-CRITICAL {
+            color: #ef4444 !important;
+            animation: critFlash 1s infinite;
+        }
+
+        @keyframes critFlash {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        /* ── Threat Gauge ── */
+        .gauge-section {
+            display: flex;
+            justify-content: center;
+            padding: 20px 28px 0;
+        }
+
+        .gauge-container {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 24px 40px;
+            text-align: center;
+            width: 320px;
+        }
+
+        .gauge-container h3 {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .gauge-svg {
+            width: 200px;
+            height: 120px;
+        }
+
+        .gauge-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.08);
+            stroke-width: 14;
+            stroke-linecap: round;
+        }
+
+        .gauge-fill {
+            fill: none;
+            stroke-width: 14;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.8s ease, stroke 0.5s;
+        }
+
+        .gauge-label {
+            font-size: 22px;
+            font-weight: 700;
+            fill: #fff;
+        }
+
+        .gauge-sublabel {
+            font-size: 11px;
+            fill: #888;
+        }
+
+        /* ── Main Grid ── */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 2.2fr 1fr;
+            gap: 16px;
+            padding: 20px 28px;
+        }
+
+        /* ── Chart Area ── */
+        .chart-section {
+            padding: 0 28px 8px;
+        }
+
+        .chart-panel {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 18px;
+        }
+
+        .chart-panel h2 {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chart-canvas {
+            width: 100%;
+            height: 100px;
+            position: relative;
+        }
+
+        .chart-bars {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            height: 80px;
+        }
+
+        .chart-bar {
+            flex: 1;
+            min-width: 8px;
+            border-radius: 4px 4px 0 0;
+            transition: height 0.4s ease, background 0.3s;
+            position: relative;
+            cursor: default;
+        }
+
+        .chart-bar:hover {
+            opacity: 0.8;
+        }
+
+        .chart-bar .tooltip {
+            display: none;
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a1a2e;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            white-space: nowrap;
+            z-index: 10;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chart-bar:hover .tooltip {
+            display: block;
+        }
+
+        .chart-labels {
+            display: flex;
+            gap: 4px;
+            margin-top: 4px;
+        }
+
+        .chart-labels span {
+            flex: 1;
+            text-align: center;
+            font-size: 8px;
+            color: #555;
+            overflow: hidden;
+        }
+
+        /* ── Panels ── */
+        .panel {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 18px;
+        }
+
+        .panel h2 {
+            font-size: 13px;
+            color: #999;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* ── Table ── */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        th {
+            text-align: left;
+            padding: 8px 10px;
+            color: #555;
+            font-weight: 500;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        td {
+            padding: 9px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            white-space: nowrap;
+        }
+
+        tr {
+            transition: background 0.15s;
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Row animations */
+        tr.new-row {
+            animation: rowSlide 0.4s ease-out;
+        }
+
+        @keyframes rowSlide {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+        }
+
+        tr.safe {
+            border-left: 3px solid #22c55e;
+        }
+
+        tr.mfa {
+            border-left: 3px solid #fbbf24;
+        }
+
+        tr.block {
+            border-left: 3px solid #ef4444;
+        }
+
+        tr.deny {
+            border-left: 3px solid #f97316;
+        }
+
+        tr.ratelim {
+            border-left: 3px solid #dc2626;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 5px;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-ALLOW {
+            background: rgba(34, 197, 94, 0.15);
+            color: #86efac;
+        }
+
+        .badge-MFA {
+            background: rgba(251, 191, 36, 0.15);
+            color: #fde68a;
+        }
+
+        .badge-MFA_PASS {
+            background: rgba(96, 165, 250, 0.15);
+            color: #93c5fd;
+        }
+
+        .badge-BLOCK {
+            background: rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+        }
+
+        .badge-DENY {
+            background: rgba(249, 115, 22, 0.15);
+            color: #fdba74;
+        }
+
+        .badge-RATE_LIMITED {
+            background: rgba(220, 38, 38, 0.2);
+            color: #fca5a5;
+        }
+
+        /* ── Country List ── */
+        .country-list {
+            list-style: none;
+        }
+
+        .country-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 7px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            font-size: 12px;
+        }
+
+        .country-list li:last-child {
+            border-bottom: none;
+        }
+
+        .country-list .bar-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .country-list .mini-bar {
+            width: 60px;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.06);
+            overflow: hidden;
+        }
+
+        .country-list .mini-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            background: #ef4444;
+            transition: width 0.5s;
+        }
+
+        .country-list .count {
+            background: rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+            padding: 2px 8px;
+            border-radius: 5px;
+            font-size: 10px;
+            font-weight: 600;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: #444;
+            font-size: 13px;
+        }
+
+        /* ── Notification toast ── */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 999;
+            background: rgba(239, 68, 68, 0.95);
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+            animation: toastIn 0.4s ease-out, toastOut 0.4s ease-in 2.6s forwards;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateX(40px);
+            }
+        }
+
+        @keyframes toastOut {
+            to {
+                opacity: 0;
+                transform: translateX(40px);
+            }
+        }
+
+        @media (max-width: 900px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .summary {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="topbar">
+        <h1>🛡️ Threat Dashboard <span class="live-dot"></span> <span style="font-size:11px;color:#22c55e;">LIVE</span>
+        </h1>
+        <div class="links">
+            <a href="/login">Login</a>
+            <a href="/research">Research</a>
+            <a href="/api/export" style="color:#22c55e;">📥 Export CSV</a>
+            <button class="btn-sm" onclick="clearAll()">🗑️ Reset</button>
+            <a href="/logout" style="color:#f87171;">🔒 Logout</a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="summary">
+        <div class="stat-card">
+            <span class="icon">📊</span>
+            <div class="value" id="totalAttempts">—</div>
+            <div class="label">Total Attempts</div>
+        </div>
+        <div class="stat-card">
+            <span class="icon">✅</span>
+            <div class="value" id="allowedCount" style="color:#22c55e;">—</div>
+            <div class="label">Allowed</div>
+        </div>
+        <div class="stat-card">
+            <span class="icon">🔑</span>
+            <div class="value" id="mfaCount" style="color:#fbbf24;">—</div>
+            <div class="label">MFA Challenges</div>
+        </div>
+        <div class="stat-card">
+            <span class="icon">🚫</span>
+            <div class="value" id="blockedCount" style="color:#ef4444;">—</div>
+            <div class="label">Blocked</div>
+        </div>
+        <div class="stat-card">
+            <span class="icon">⛔</span>
+            <div class="value" id="bannedCount" style="color:#dc2626;">—</div>
+            <div class="label">Banned IPs</div>
+        </div>
+        <div class="stat-card">
+            <span class="icon">🌐</span>
+            <div class="value" id="uniqueIPs" style="color:#60a5fa;">—</div>
+            <div class="label">Unique IPs</div>
+        </div>
+        <div class="stat-card">
+            <span class="icon">📈</span>
+            <div class="value" id="avgRisk" style="color:#c084fc;">—</div>
+            <div class="label">Avg Risk</div>
+        </div>
+        <div class="stat-card">
+            <span class="icon">⚡</span>
+            <div class="value" id="threatLevel">—</div>
+            <div class="label">Threat Level</div>
+        </div>
+    </div>
+
+    <!-- Threat Gauge + Risk Timeline -->
+    <div style="display:flex; gap:16px; padding:20px 28px 0; flex-wrap: wrap;">
+        <div class="gauge-container" style="flex:0 0 auto;">
+            <h3>System Risk Gauge</h3>
+            <svg class="gauge-svg" viewBox="0 0 200 120">
+                <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100" />
+                <path class="gauge-fill" id="gaugeFill" d="M 20 100 A 80 80 0 0 1 180 100" stroke="#22c55e"
+                    stroke-dasharray="251" stroke-dashoffset="251" />
+                <text class="gauge-label" x="100" y="90" text-anchor="middle" id="gaugeText">0%</text>
+                <text class="gauge-sublabel" x="100" y="108" text-anchor="middle" id="gaugeSub">LOW</text>
+            </svg>
+        </div>
+        <div class="chart-panel" style="flex:1; min-width:300px;">
+            <h2>📈 Risk Timeline (last 20 events)</h2>
+            <div class="chart-canvas">
+                <div class="chart-bars" id="chartBars"></div>
+                <div class="chart-labels" id="chartLabels"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        <!-- Live Feed -->
+        <div class="panel">
+            <h2>📡 Live Attack Feed</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>IP Address</th>
+                        <th>Country</th>
+                        <th>Device</th>
+                        <th>Risk</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="feedBody">
+                    <tr>
+                        <td colspan="6" class="empty-state">Waiting for data…</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Threat Map -->
+        <div class="panel">
+            <h2>🌍 Attack Origins</h2>
+            <ul class="country-list" id="countryList">
+                <li class="empty-state">No attacks yet</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Toast container -->
+    <div id="toastContainer"></div>
+
+    <script>
+        let lastTotal = 0;
+        let lastBlocked = 0;
+
+        function rowClass(a) {
+            if (a === "ALLOW") return "safe";
+            if (a === "BLOCK") return "block";
+            if (a === "DENY") return "deny";
+            if (a === "RATE_LIMITED") return "ratelim";
+            return "mfa";
+        }
+
+        function riskBar(score) {
+            const pct = Math.round(score * 100);
+            let c = "#22c55e";
+            if (score > 0.7) c = "#ef4444";
+            else if (score > 0.3) c = "#fbbf24";
+            return `<span style="display:inline-flex;align-items:center;gap:5px;">
+                <span style="width:40px;height:5px;border-radius:3px;background:rgba(255,255,255,0.08);display:inline-block;">
+                    <span style="display:block;width:${pct}%;height:100%;border-radius:3px;background:${c};"></span>
+                </span>${pct}%</span>`;
+        }
+
+        function barColor(action) {
+            if (action === "BLOCK" || action === "RATE_LIMITED") return "#ef4444";
+            if (action === "MFA" || action === "MFA_PASS") return "#fbbf24";
+            if (action === "DENY") return "#f97316";
+            return "#22c55e";
+        }
+
+        function showToast(msg) {
+            const div = document.createElement("div");
+            div.className = "toast";
+            div.innerHTML = msg;
+            document.getElementById("toastContainer").appendChild(div);
+            setTimeout(() => div.remove(), 3200);
+        }
+
+        function updateGauge(avgRisk, level) {
+            const maxOffset = 251;
+            const fill = document.getElementById("gaugeFill");
+            const text = document.getElementById("gaugeText");
+            const sub = document.getElementById("gaugeSub");
+            const pct = Math.min(avgRisk * 100, 100);
+            const offset = maxOffset - (pct / 100) * maxOffset;
+            fill.style.strokeDashoffset = offset;
+
+            let color = "#22c55e";
+            if (level === "CRITICAL") color = "#ef4444";
+            else if (level === "HIGH") color = "#f97316";
+            else if (level === "MEDIUM") color = "#fbbf24";
+            fill.style.stroke = color;
+
+            text.textContent = Math.round(pct) + "%";
+            sub.textContent = level;
+            sub.style.fill = color;
+        }
+
+        function updateChart(timeline) {
+            const bars = document.getElementById("chartBars");
+            const labels = document.getElementById("chartLabels");
+            if (!timeline || timeline.length === 0) {
+                bars.innerHTML = '<span class="empty-state" style="width:100%;text-align:center;">No data</span>';
+                labels.innerHTML = '';
+                return;
+            }
+            bars.innerHTML = timeline.map(t => {
+                const h = Math.max(4, t.risk * 80);
+                const c = barColor(t.action);
+                return `<div class="chart-bar" style="height:${h}px;background:${c};">
+                    <div class="tooltip">${t.time}<br>Risk: ${(t.risk * 100).toFixed(0)}% — ${t.action}</div>
+                </div>`;
+            }).join('');
+            labels.innerHTML = timeline.map(t =>
+                `<span>${t.time.slice(0, 5)}</span>`
+            ).join('');
+        }
+
+        async function refresh() {
+            try {
+                const res = await fetch("/api/stats");
+                const data = await res.json();
+                const s = data.summary;
+
+                // Stats
+                document.getElementById("totalAttempts").textContent = s.total;
+                document.getElementById("allowedCount").textContent = s.allowed;
+                document.getElementById("mfaCount").textContent = s.mfa_challenges;
+                document.getElementById("blockedCount").textContent = s.blocked + (s.rate_limited || 0);
+                document.getElementById("bannedCount").textContent = s.banned_ips || 0;
+                document.getElementById("uniqueIPs").textContent = s.unique_ips || 0;
+                document.getElementById("avgRisk").textContent = ((s.avg_risk || 0) * 100).toFixed(0) + "%";
+
+                const tl = document.getElementById("threatLevel");
+                tl.textContent = s.threat_level;
+                tl.className = "value threat-" + s.threat_level;
+
+                // Gauge
+                updateGauge(s.avg_risk || 0, s.threat_level);
+
+                // Chart
+                updateChart(data.timeline);
+
+                // Toast alerts
+                const newBlocked = s.blocked + (s.rate_limited || 0);
+                if (newBlocked > lastBlocked && lastBlocked > 0) {
+                    const diff = newBlocked - lastBlocked;
+                    showToast(`🚨 ${diff} new attack${diff > 1 ? 's' : ''} blocked!`);
+                    // Play alert sound
+                    try {
+                        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain); gain.connect(ctx.destination);
+                        osc.frequency.value = 600; osc.type = "sine";
+                        gain.gain.value = 0.08;
+                        osc.start(); osc.stop(ctx.currentTime + 0.15);
+                    } catch (e) { }
+                }
+                lastBlocked = newBlocked;
+                lastTotal = s.total;
+
+                // Feed table
+                const body = document.getElementById("feedBody");
+                if (data.recent.length === 0) {
+                    body.innerHTML = '<tr><td colspan="6" class="empty-state">Waiting for data…</td></tr>';
+                } else {
+                    body.innerHTML = data.recent.map(r => `
+                        <tr class="${rowClass(r.action_taken)} new-row">
+                            <td style="color:#555;">${r.timestamp}</td>
+                            <td><code style="color:#a78bfa;font-size:11px;">${r.ip_address}</code></td>
+                            <td>${r.country}</td>
+                            <td style="color:#666;">${r.device_type}</td>
+                            <td>${riskBar(r.risk_score)}</td>
+                            <td><span class="badge badge-${r.action_taken}">${r.action_taken}</span></td>
+                        </tr>`).join("");
+                }
+
+                // Countries
+                const cl = document.getElementById("countryList");
+                if (data.attacking_countries.length === 0) {
+                    cl.innerHTML = '<li class="empty-state">No attacks yet</li>';
+                } else {
+                    const maxB = Math.max(...data.attacking_countries.map(c => c.blocked));
+                    cl.innerHTML = data.attacking_countries.map(c => {
+                        const pct = maxB > 0 ? (c.blocked / maxB * 100) : 0;
+                        return `<li>
+                            <span>${c.country}</span>
+                            <div class="bar-wrap">
+                                <div class="mini-bar"><div class="mini-bar-fill" style="width:${pct}%"></div></div>
+                                <span class="count">${c.blocked}</span>
+                            </div>
+                        </li>`;
+                    }).join("");
+                }
+            } catch (e) { console.error("Refresh failed:", e); }
+        }
+
+        async function clearAll() {
+            if (!confirm("Clear all logs and unban all IPs?")) return;
+            await fetch("/api/clear", { method: "POST" });
+            lastTotal = 0; lastBlocked = 0;
+            refresh();
+        }
+
+        refresh();
+        setInterval(refresh, 2000);
+    </script>
+
+</body>
+
+</html>
