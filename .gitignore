@@ -7,3 +7,6 @@ auth.db
 
 # Error logs
 err.txt
+
+# AWS Elastic Beanstalk
+.elasticbeanstalk/
