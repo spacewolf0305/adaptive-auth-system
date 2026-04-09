@@ -1,0 +1,212 @@
+{
+  "total_scenarios": 1500,
+  "total_attacks": 750,
+  "total_legitimate": 750,
+  "threshold_metrics": {
+    "conservative": {
+      "threshold": 0.3,
+      "true_positives": 656,
+      "false_positives": 1,
+      "true_negatives": 749,
+      "false_negatives": 94,
+      "true_positive_rate": 0.8747,
+      "false_positive_rate": 0.0013,
+      "false_negative_rate": 0.1253,
+      "precision": 0.9985,
+      "recall": 0.8747,
+      "f1_score": 0.9325
+    },
+    "balanced": {
+      "threshold": 0.5,
+      "true_positives": 644,
+      "false_positives": 0,
+      "true_negatives": 750,
+      "false_negatives": 106,
+      "true_positive_rate": 0.8587,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 0.1413,
+      "precision": 1.0,
+      "recall": 0.8587,
+      "f1_score": 0.924
+    },
+    "aggressive": {
+      "threshold": 0.7,
+      "true_positives": 587,
+      "false_positives": 0,
+      "true_negatives": 750,
+      "false_negatives": 163,
+      "true_positive_rate": 0.7827,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 0.2173,
+      "precision": 1.0,
+      "recall": 0.7827,
+      "f1_score": 0.8781
+    }
+  },
+  "category_detection": {
+    "high": {
+      "total_scenarios": 500,
+      "detected": 500,
+      "detection_rate": 1.0,
+      "avg_risk_score": 0.9362
+    },
+    "medium": {
+      "total_scenarios": 250,
+      "detected": 144,
+      "detection_rate": 0.576,
+      "avg_risk_score": 0.4767
+    },
+    "low": {
+      "total_scenarios": 750,
+      "detected": 0,
+      "detection_rate": 0.0,
+      "avg_risk_score": 0.0712
+    }
+  },
+  "profile_detection": {
+    "TH unusual hour": {
+      "total": 60,
+      "detected": 21,
+      "detection_rate": 0.35,
+      "avg_risk_score": 0.3033
+    },
+    "SA odd device": {
+      "total": 57,
+      "detected": 22,
+      "detection_rate": 0.386,
+      "avg_risk_score": 0.3013
+    },
+    "DE regular": {
+      "total": 111,
+      "detected": 0,
+      "detection_rate": 0.0,
+      "avg_risk_score": 0.0626
+    },
+    "AU safe": {
+      "total": 129,
+      "detected": 0,
+      "detection_rate": 0.0,
+      "avg_risk_score": 0.0718
+    },
+    "SY state actor": {
+      "total": 47,
+      "detected": 47,
+      "detection_rate": 1.0,
+      "avg_risk_score": 0.9738
+    },
+    "US trusted": {
+      "total": 114,
+      "detected": 0,
+      "detection_rate": 0.0,
+      "avg_risk_score": 0.1535
+    },
+    "CA trusted": {
+      "total": 140,
+      "detected": 0,
+      "detection_rate": 0.0,
+      "avg_risk_score": 0.0741
+    },
+    "VE mass scan": {
+      "total": 48,
+      "detected": 48,
+      "detection_rate": 1.0,
+      "avg_risk_score": 0.8439
+    },
+    "IN routine": {
+      "total": 126,
+      "detected": 0,
+      "detection_rate": 0.0,
+      "avg_risk_score": 0.0309
+    },
+    "CN credential stuff": {
+      "total": 49,
+      "detected": 49,
+      "detection_rate": 1.0,
+      "avg_risk_score": 0.9133
+    },
+    "LY credential flood": {
+      "total": 46,
+      "detected": 46,
+      "detection_rate": 1.0,
+      "avg_risk_score": 0.9566
+    },
+    "IR APT probe": {
+      "total": 38,
+      "detected": 38,
+      "detection_rate": 1.0,
+      "avg_risk_score": 0.9485
+    },
+    "JP normal": {
+      "total": 130,
+      "detected": 0,
+      "detection_rate": 0.0,
+      "avg_risk_score": 0.0417
+    },
+    "UA DarkWeb dump": {
+      "total": 57,
+      "detected": 57,
+      "detection_rate": 1.0,
+      "avg_risk_score": 0.9091
+    },
+    "NK IoT botnet": {
+      "total": 53,
+      "detected": 53,
+      "detection_rate": 1.0,
+      "avg_risk_score": 0.9671
+    },
+    "NG phishing": {
+      "total": 49,
+      "detected": 48,
+      "detection_rate": 0.9796,
+      "avg_risk_score": 0.8219
+    },
+    "CO mixed signals": {
+      "total": 47,
+      "detected": 25,
+      "detection_rate": 0.5319,
+      "avg_risk_score": 0.4389
+    },
+    "CU botnet relay": {
+      "total": 52,
+      "detected": 52,
+      "detection_rate": 1.0,
+      "avg_risk_score": 0.9471
+    },
+    "RU brute-force": {
+      "total": 54,
+      "detected": 54,
+      "detection_rate": 1.0,
+      "avg_risk_score": 0.9383
+    },
+    "SO bot swarm": {
+      "total": 56,
+      "detected": 56,
+      "detection_rate": 1.0,
+      "avg_risk_score": 0.9647
+    },
+    "BR suspicious": {
+      "total": 37,
+      "detected": 28,
+      "detection_rate": 0.7568,
+      "avg_risk_score": 0.619
+    }
+  },
+  "score_distribution": {
+    "attacks": {
+      "mean": 0.783,
+      "median": 0.9231,
+      "std": 0.29,
+      "min": 0.0092,
+      "max": 0.9947
+    },
+    "legitimate": {
+      "mean": 0.0712,
+      "median": 0.0552,
+      "std": 0.0477,
+      "min": 0.0067,
+      "max": 0.3037
+    },
+    "separation": 0.7118
+  },
+  "evaluation_time_seconds": 41.09
+}

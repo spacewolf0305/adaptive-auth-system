@@ -1,7 +1,8 @@
 """
 =============================================================================
- Adaptive Authentication System — Flask Application
+ Adaptive Authentication System in Cloud — Flask Application
  Routes: /login, /mfa, /dashboard, /research, /api/stats, /api/export, /logout
+ Cloud:  AWS RDS (PostgreSQL) · ElastiCache (Redis) · S3 (ML Models)
 =============================================================================
 """
 
@@ -11,6 +12,7 @@ import math
 import collections
 import csv
 import io
+import json
 from datetime import datetime, timezone, timedelta
 from functools import wraps
 
@@ -22,49 +24,109 @@ from flask import (
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from models import db, User, LoginLog
+from config import Config
+from models import db, User, LoginLog, Plan, APIKey, APIUsage
 from risk_engine import predict_risk
+import uuid as uuid_mod
 
 # ─── App Factory ──────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+cfg = Config()
 
 app = Flask(__name__)
 app.config.update(
-    SECRET_KEY=os.environ.get("SECRET_KEY", "adaptive-auth-dev-key-change-me"),
-    SQLALCHEMY_DATABASE_URI=f"sqlite:///{os.path.join(BASE_DIR, 'auth.db')}",
+    SECRET_KEY=cfg.SECRET_KEY,
+    SQLALCHEMY_DATABASE_URI=cfg.SQLALCHEMY_DATABASE_URI,
     SQLALCHEMY_TRACK_MODIFICATIONS=False,
-    PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
+    PERMANENT_SESSION_LIFETIME=timedelta(minutes=cfg.PERMANENT_SESSION_LIFETIME_MINUTES),
 )
+
+# ─── Redis Session Store (cloud) or default cookie sessions (local) ──────────
+_redis_client = None
+if cfg.use_redis:
+    try:
+        import redis as redis_lib
+        _redis_client = redis_lib.from_url(cfg.REDIS_URL, decode_responses=True)
+        _redis_client.ping()
+        print(f"  ✅  Redis connected: {cfg.REDIS_URL}")
+
+        # Use server-side sessions stored in Redis
+        from flask_session import Session
+        app.config["SESSION_TYPE"] = "redis"
+        app.config["SESSION_REDIS"] = redis_lib.from_url(cfg.REDIS_URL)
+        app.config["SESSION_PERMANENT"] = True
+        Session(app)
+    except Exception as e:
+        print(f"  ⚠️  Redis unavailable ({e}), falling back to in-memory")
+        _redis_client = None
+
 db.init_app(app)
+
+print(cfg.summary())
 
 
 @app.before_request
 def _make_session_permanent():
     session.permanent = True
 
-# ─── Rate Limiter (in‑memory) ─────────────────────────────────────────────────
-# Track blocked IPs: { ip: [timestamp, ...] }
-_block_history: dict[str, list[datetime]] = collections.defaultdict(list)
+
+def login_required(f):
+    """Decorator to require login for a route."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user_id" not in session:
+            flash("Please log in first.", "warning")
+            return redirect(url_for("login_page"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ─── Rate Limiter (Redis-backed in cloud, in-memory locally) ─────────────────
 RATE_LIMIT_WINDOW = 600   # 10 minutes
-RATE_LIMIT_MAX    = 5     # max blocks before auto‑ban
+RATE_LIMIT_MAX    = 5     # max blocks before auto-ban
+
+# In-memory fallback
+_block_history: dict[str, list[datetime]] = collections.defaultdict(list)
 _banned_ips: set[str] = set()
 
 
 def _check_rate_limit(ip: str) -> bool:
-    """Return True if the IP is banned / rate‑limited."""
-    if ip in _banned_ips:
-        return True
-    now = datetime.now(timezone.utc)
-    cutoff = now - timedelta(seconds=RATE_LIMIT_WINDOW)
-    _block_history[ip] = [t for t in _block_history[ip] if t > cutoff]
-    return False
+    """Return True if the IP is banned / rate-limited."""
+    if _redis_client:
+        # Cloud mode: check Redis
+        if _redis_client.sismember("adaptive_auth:banned_ips", ip):
+            return True
+        # Clean old entries automatically via Redis TTL (sorted set)
+        return False
+    else:
+        # Local mode: in-memory
+        if ip in _banned_ips:
+            return True
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(seconds=RATE_LIMIT_WINDOW)
+        _block_history[ip] = [t for t in _block_history[ip] if t > cutoff]
+        return False
 
 
 def _record_block(ip: str):
-    """Record a block event; auto‑ban if threshold exceeded."""
-    _block_history[ip].append(datetime.now(timezone.utc))
-    if len(_block_history[ip]) >= RATE_LIMIT_MAX:
-        _banned_ips.add(ip)
+    """Record a block event; auto-ban if threshold exceeded."""
+    if _redis_client:
+        # Cloud mode: Redis sorted set with timestamp scores
+        now_ts = datetime.now(timezone.utc).timestamp()
+        key = f"adaptive_auth:blocks:{ip}"
+        _redis_client.zadd(key, {str(now_ts): now_ts})
+        _redis_client.expire(key, RATE_LIMIT_WINDOW)
+        # Remove old entries
+        cutoff = now_ts - RATE_LIMIT_WINDOW
+        _redis_client.zremrangebyscore(key, "-inf", cutoff)
+        count = _redis_client.zcard(key)
+        if count >= RATE_LIMIT_MAX:
+            _redis_client.sadd("adaptive_auth:banned_ips", ip)
+    else:
+        # Local mode: in-memory
+        _block_history[ip].append(datetime.now(timezone.utc))
+        if len(_block_history[ip]) >= RATE_LIMIT_MAX:
+            _banned_ips.add(ip)
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -170,13 +232,33 @@ def _seed_demo_user():
         print(f"  📱  OTP URI    : {totp_uri}\n")
 
 
+def _seed_plans():
+    """Create default pricing plans if they don't exist."""
+    plans = [
+        {"name": "free",       "display_name": "Free",       "monthly_limit": 500,     "price_cents": 0,
+         "features": '["500 API calls/month", "Basic risk scoring", "Community support"]'},
+        {"name": "starter",    "display_name": "Starter",    "monthly_limit": 10000,   "price_cents": 2900,
+         "features": '["10,000 API calls/month", "Full risk scoring", "MFA detection", "Email support"]'},
+        {"name": "business",   "display_name": "Business",   "monthly_limit": 100000,  "price_cents": 9900,
+         "features": '["100,000 API calls/month", "Advanced analytics", "Geo-tracking", "Priority support", "Webhook alerts"]'},
+        {"name": "enterprise", "display_name": "Enterprise", "monthly_limit": 1000000, "price_cents": 29900,
+         "features": '["1,000,000 API calls/month", "Custom ML model", "Dedicated support", "SLA guarantee", "On-premise option"]'},
+    ]
+    for p in plans:
+        if not Plan.query.filter_by(name=p["name"]).first():
+            db.session.add(Plan(**p))
+    db.session.commit()
+    print(f"  💰  {Plan.query.count()} pricing plans ready")
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ROUTES
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/")
 def index():
-    return redirect(url_for("login_page"))
+    plans = Plan.query.filter_by(is_active=True).order_by(Plan.price_cents).all()
+    return render_template("landing.html", plans=plans)
 
 
 # ─── Login ────────────────────────────────────────────────────────────────────
@@ -446,8 +528,14 @@ def api_clear():
     """Reset dashboard data and unban all IPs."""
     LoginLog.query.delete()
     db.session.commit()
-    _banned_ips.clear()
-    _block_history.clear()
+    # Clear rate limiter state
+    if _redis_client:
+        # Delete all adaptive_auth keys from Redis
+        for key in _redis_client.scan_iter("adaptive_auth:*"):
+            _redis_client.delete(key)
+    else:
+        _banned_ips.clear()
+        _block_history.clear()
     return jsonify({"status": "ok", "message": "All logs cleared."})
 
 
@@ -478,14 +566,425 @@ def api_export():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  SAAS API — ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ─── Helper: monthly usage for an API key ────────────────────────────────────
+
+def _get_monthly_usage(api_key_id: int) -> int:
+    """Return total API calls this calendar month for a given key."""
+    today = datetime.now(timezone.utc).date()
+    first_of_month = today.replace(day=1)
+    rows = APIUsage.query.filter(
+        APIUsage.api_key_id == api_key_id,
+        APIUsage.date >= first_of_month,
+    ).all()
+    return sum(r.call_count for r in rows)
+
+
+# ─── Signup ───────────────────────────────────────────────────────────────────
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup_page():
+    if request.method == "GET":
+        return render_template("signup.html")
+
+    username = request.form.get("username", "").strip()
+    email = request.form.get("email", "").strip()
+    password = request.form.get("password", "")
+    confirm = request.form.get("confirm_password", "")
+
+    if not username or not email or not password:
+        flash("All fields are required.", "danger")
+        return render_template("signup.html"), 400
+
+    if password != confirm:
+        flash("Passwords do not match.", "danger")
+        return render_template("signup.html"), 400
+
+    if User.query.filter_by(username=username).first():
+        flash("Username already taken.", "danger")
+        return render_template("signup.html"), 409
+
+    if User.query.filter_by(email=email).first():
+        flash("Email already registered.", "danger")
+        return render_template("signup.html"), 409
+
+    mfa_secret = pyotp.random_base32()
+    user = User(
+        username=username,
+        email=email,
+        password_hash=generate_password_hash(password),
+        mfa_secret=mfa_secret,
+    )
+    db.session.add(user)
+    db.session.commit()
+
+    # Auto-create a free API key
+    free_plan = Plan.query.filter_by(name="free").first()
+    if free_plan:
+        key = APIKey(user_id=user.id, plan_id=free_plan.id, name="Default Key")
+        db.session.add(key)
+        db.session.commit()
+
+    session["user_id"] = user.id
+    flash(f"✅ Welcome, {username}! Your free API key is ready.", "success")
+    return redirect(url_for("api_dashboard"))
+
+
+# ─── Public API: Risk Assessment ──────────────────────────────────────────────
+
+@app.route("/api/v1/assess", methods=["POST"])
+def api_v1_assess():
+    """
+    Public risk assessment endpoint. Requires X-API-Key header.
+    Accepts JSON body with login context, returns risk score and action.
+    """
+    # 1. Validate API key
+    api_key_str = request.headers.get("X-API-Key", "").strip()
+    if not api_key_str:
+        return jsonify({"error": "Missing X-API-Key header", "code": "AUTH_REQUIRED"}), 401
+
+    api_key = APIKey.query.filter_by(key=api_key_str, is_active=True).first()
+    if not api_key:
+        return jsonify({"error": "Invalid or revoked API key", "code": "INVALID_KEY"}), 401
+
+    # 2. Check usage limits
+    monthly_usage = _get_monthly_usage(api_key.id)
+    monthly_limit = api_key.plan.monthly_limit if api_key.plan else 500
+
+    if monthly_usage >= monthly_limit:
+        return jsonify({
+            "error": "Monthly API limit exceeded",
+            "code": "LIMIT_EXCEEDED",
+            "usage": monthly_usage,
+            "limit": monthly_limit,
+            "plan": api_key.plan.display_name if api_key.plan else "Free",
+        }), 429
+
+    # 3. Parse request body
+    data = request.get_json(silent=True) or {}
+
+    country = data.get("country", "Unknown")
+    region = data.get("region", "Unknown")
+    hour = int(data.get("hour_of_day", datetime.now(timezone.utc).hour))
+    device = data.get("device_type", "desktop")
+    prev_success = int(data.get("prev_login_success", 1))
+    threat = int(data.get("threat_score", 0))
+    distance = float(data.get("distance_from_last_login", 0))
+
+    # 4. Run the AI model
+    risk = predict_risk({
+        "country": country,
+        "region": region,
+        "hour_of_day": hour,
+        "device_type": device,
+        "prev_login_success": prev_success,
+        "threat_score": threat,
+        "distance_from_last_login": distance,
+    })
+
+    # 5. Determine action
+    if risk < 0.3:
+        action = "ALLOW"
+    elif risk <= 0.7:
+        action = "MFA"
+    else:
+        action = "BLOCK"
+
+    # 6. Build reasons
+    reasons = []
+    if threat > 60:
+        reasons.append("high_threat_score")
+    if distance > 3000:
+        reasons.append("unusual_distance")
+    if hour < 5 or hour > 23:
+        reasons.append("unusual_hour")
+    if device in ("iot_device", "smart_tv"):
+        reasons.append("unusual_device")
+    if country in ("North Korea", "Iran", "Russia"):
+        reasons.append("high_risk_country")
+    if prev_success == 0:
+        reasons.append("no_previous_success")
+
+    # 7. Record usage
+    today = datetime.now(timezone.utc).date()
+    usage = APIUsage.query.filter_by(api_key_id=api_key.id, date=today).first()
+    if usage:
+        usage.call_count += 1
+    else:
+        usage = APIUsage(api_key_id=api_key.id, date=today, call_count=1)
+        db.session.add(usage)
+    db.session.commit()
+
+    # 8. Return response
+    request_id = f"req_{uuid_mod.uuid4().hex[:16]}"
+    return jsonify({
+        "risk_score": risk,
+        "action": action,
+        "reasons": reasons,
+        "request_id": request_id,
+        "usage": {
+            "calls_today": usage.call_count,
+            "calls_this_month": monthly_usage + 1,
+            "monthly_limit": monthly_limit,
+        },
+    })
+
+
+# ─── API Dashboard ────────────────────────────────────────────────────────────
+
+@app.route("/api-dashboard")
+@login_required
+def api_dashboard():
+    user = User.query.get(session["user_id"])
+    keys = APIKey.query.filter_by(user_id=user.id).order_by(APIKey.created_at.desc()).all()
+
+    # Enrich keys with usage data
+    enriched_keys = []
+    for k in keys:
+        monthly = _get_monthly_usage(k.id)
+        today_usage = APIUsage.query.filter_by(
+            api_key_id=k.id,
+            date=datetime.now(timezone.utc).date()
+        ).first()
+        enriched_keys.append({
+            **k.to_dict(),
+            "calls_today": today_usage.call_count if today_usage else 0,
+            "calls_this_month": monthly,
+            "monthly_limit": k.plan.monthly_limit if k.plan else 500,
+            "plan_name": k.plan.display_name if k.plan else "Free",
+        })
+
+    plans = Plan.query.filter_by(is_active=True).order_by(Plan.price_cents).all()
+    return render_template("api_dashboard.html", user=user, keys=enriched_keys, plans=plans)
+
+
+@app.route("/api/keys/create", methods=["POST"])
+@login_required
+def api_key_create():
+    user = User.query.get(session["user_id"])
+    key_name = request.form.get("key_name", "").strip() or "API Key"
+    plan_name = request.form.get("plan", "free")
+
+    plan = Plan.query.filter_by(name=plan_name).first()
+    if not plan:
+        plan = Plan.query.filter_by(name="free").first()
+
+    # Limit: max 5 keys per user
+    active_keys = APIKey.query.filter_by(user_id=user.id, is_active=True).count()
+    if active_keys >= 5:
+        flash("Maximum 5 active API keys allowed.", "warning")
+        return redirect(url_for("api_dashboard"))
+
+    key = APIKey(user_id=user.id, plan_id=plan.id, name=key_name)
+    db.session.add(key)
+    db.session.commit()
+    flash(f"✅ New API key created: {key.key[:20]}...", "success")
+    return redirect(url_for("api_dashboard"))
+
+
+@app.route("/api/keys/<int:key_id>/revoke", methods=["POST"])
+@login_required
+def api_key_revoke(key_id):
+    key = APIKey.query.get(key_id)
+    if not key or key.user_id != session["user_id"]:
+        flash("API key not found.", "danger")
+        return redirect(url_for("api_dashboard"))
+
+    key.is_active = False
+    key.revoked_at = datetime.now(timezone.utc)
+    db.session.commit()
+    flash(f"🔒 API key revoked.", "success")
+    return redirect(url_for("api_dashboard"))
+
+
+@app.route("/api/usage")
+@login_required
+def api_usage_stats():
+    """JSON endpoint: usage stats for the logged-in user's keys."""
+    user = User.query.get(session["user_id"])
+    keys = APIKey.query.filter_by(user_id=user.id).all()
+    result = []
+    for k in keys:
+        monthly = _get_monthly_usage(k.id)
+        result.append({
+            "key_id": k.id,
+            "key_name": k.name,
+            "key_prefix": k.key[:16] + "...",
+            "plan": k.plan.display_name if k.plan else "Free",
+            "calls_this_month": monthly,
+            "monthly_limit": k.plan.monthly_limit if k.plan else 500,
+            "is_active": k.is_active,
+        })
+    return jsonify({"keys": result})
+
+
+# ─── Pricing ──────────────────────────────────────────────────────────────────
+
+@app.route("/pricing")
+def pricing_page():
+    plans = Plan.query.filter_by(is_active=True).order_by(Plan.price_cents).all()
+    return render_template("landing.html", plans=plans, scroll_to="pricing")
+
+
+# ─── API Docs ─────────────────────────────────────────────────────────────────
+
+@app.route("/api-docs")
+def api_docs_page():
+    return render_template("api_docs.html")
+
+
+# ─── Stripe Billing ──────────────────────────────────────────────────────────
+
+@app.route("/billing/checkout", methods=["POST"])
+@login_required
+def billing_checkout():
+    """Create a Stripe checkout session for a plan upgrade."""
+    if not cfg.STRIPE_SECRET_KEY:
+        flash("Billing is not configured yet.", "warning")
+        return redirect(url_for("api_dashboard"))
+
+    try:
+        import stripe
+        stripe.api_key = cfg.STRIPE_SECRET_KEY
+
+        plan_name = request.form.get("plan", "starter")
+        plan = Plan.query.filter_by(name=plan_name).first()
+
+        if not plan or not plan.stripe_price_id:
+            flash("This plan is not available for purchase yet.", "warning")
+            return redirect(url_for("api_dashboard"))
+
+        user = User.query.get(session["user_id"])
+
+        # Create or reuse Stripe customer
+        if not user.stripe_customer_id:
+            customer = stripe.Customer.create(
+                email=user.email or f"{user.username}@adaptiveauth.local",
+                metadata={"user_id": user.id, "username": user.username},
+            )
+            user.stripe_customer_id = customer.id
+            db.session.commit()
+
+        checkout_session = stripe.checkout.Session.create(
+            customer=user.stripe_customer_id,
+            payment_method_types=["card"],
+            line_items=[{"price": plan.stripe_price_id, "quantity": 1}],
+            mode="subscription",
+            success_url=request.host_url + "api-dashboard?upgraded=1",
+            cancel_url=request.host_url + "api-dashboard?cancelled=1",
+            metadata={"user_id": user.id, "plan_name": plan.name},
+        )
+        return redirect(checkout_session.url, code=303)
+
+    except Exception as e:
+        flash(f"Billing error: {str(e)}", "danger")
+        return redirect(url_for("api_dashboard"))
+
+
+@app.route("/billing/webhook", methods=["POST"])
+def billing_webhook():
+    """Handle Stripe webhook events."""
+    if not cfg.STRIPE_SECRET_KEY or not cfg.STRIPE_WEBHOOK_SECRET:
+        return jsonify({"error": "Not configured"}), 503
+
+    try:
+        import stripe
+        stripe.api_key = cfg.STRIPE_SECRET_KEY
+
+        payload = request.get_data(as_text=True)
+        sig_header = request.headers.get("Stripe-Signature")
+
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, cfg.STRIPE_WEBHOOK_SECRET
+        )
+
+        if event.type == "checkout.session.completed":
+            session_data = event.data.object
+            user_id = session_data.metadata.get("user_id")
+            plan_name = session_data.metadata.get("plan_name")
+            subscription_id = session_data.get("subscription")
+
+            if user_id and plan_name:
+                user = User.query.get(int(user_id))
+                plan = Plan.query.filter_by(name=plan_name).first()
+                if user and plan:
+                    # Upgrade user's latest key or create new one
+                    latest_key = APIKey.query.filter_by(
+                        user_id=user.id, is_active=True
+                    ).order_by(APIKey.created_at.desc()).first()
+
+                    if latest_key:
+                        latest_key.plan_id = plan.id
+                        latest_key.stripe_subscription_id = subscription_id
+                    else:
+                        new_key = APIKey(
+                            user_id=user.id,
+                            plan_id=plan.id,
+                            stripe_subscription_id=subscription_id,
+                        )
+                        db.session.add(new_key)
+                    db.session.commit()
+
+        elif event.type == "customer.subscription.deleted":
+            sub = event.data.object
+            # Downgrade to free
+            key = APIKey.query.filter_by(stripe_subscription_id=sub.id).first()
+            if key:
+                free_plan = Plan.query.filter_by(name="free").first()
+                if free_plan:
+                    key.plan_id = free_plan.id
+                    key.stripe_subscription_id = None
+                    db.session.commit()
+
+        return jsonify({"status": "ok"})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/billing/portal", methods=["POST"])
+@login_required
+def billing_portal():
+    """Redirect to Stripe customer billing portal."""
+    if not cfg.STRIPE_SECRET_KEY:
+        flash("Billing is not configured yet.", "warning")
+        return redirect(url_for("api_dashboard"))
+
+    try:
+        import stripe
+        stripe.api_key = cfg.STRIPE_SECRET_KEY
+
+        user = User.query.get(session["user_id"])
+        if not user.stripe_customer_id:
+            flash("No billing account found.", "warning")
+            return redirect(url_for("api_dashboard"))
+
+        portal_session = stripe.billing_portal.Session.create(
+            customer=user.stripe_customer_id,
+            return_url=request.host_url + "api-dashboard",
+        )
+        return redirect(portal_session.url, code=303)
+
+    except Exception as e:
+        flash(f"Billing error: {str(e)}", "danger")
+        return redirect(url_for("api_dashboard"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  STARTUP
 # ═══════════════════════════════════════════════════════════════════════════════
 
 with app.app_context():
     db.create_all()
     _seed_demo_user()
+    _seed_plans()
 
 
 if __name__ == "__main__":
-    print("\n  🚀  Adaptive Auth running at http://localhost:5000\n")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    cloud_tag = " [CLOUD]" if cfg.is_cloud_mode else " [LOCAL]"
+    print(f"\n  🚀  Adaptive Auth SaaS{cloud_tag} running at http://localhost:5000\n")
+    app.run(host="0.0.0.0", port=5000, debug=not cfg.is_cloud_mode)
+

@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.pyc
+.venv/
 
 # Database
 auth.db
@@ -10,3 +11,5 @@ err.txt
 
 # AWS Elastic Beanstalk
 .elasticbeanstalk/
+.aws_deploy_config.json
+

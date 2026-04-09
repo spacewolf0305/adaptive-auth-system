@@ -1,8 +1,9 @@
 """
 =============================================================================
- Adaptive Authentication System — AI Risk Engine
+ Adaptive Authentication System in Cloud — AI Risk Engine
  Trains a Random Forest Classifier on synthetic auth data, generates
- research‑grade visualisations, and exposes a real‑time inference function.
+ research-grade visualisations, and exposes a real-time inference function.
+ Cloud:  Stores/loads model artifacts from AWS S3 when configured.
 =============================================================================
 """
 
@@ -26,6 +27,9 @@ from sklearn.metrics import (
 from sklearn.preprocessing import LabelEncoder
 
 warnings.filterwarnings("ignore")
+
+from config import Config
+_cfg = Config()
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -55,6 +59,48 @@ PRETTY_FEATURE_NAMES = [
     "Threat Score",
     "Distance (km)",
 ]
+
+
+# ─── S3 Helpers ─────────────────────────────────────────────────────────────────
+
+def _get_s3_client():
+    """Return a boto3 S3 client if cloud mode is enabled."""
+    if not _cfg.use_s3:
+        return None
+    try:
+        import boto3
+        return boto3.client("s3", region_name=_cfg.AWS_REGION)
+    except Exception as e:
+        print(f"  ⚠️  S3 client failed: {e}")
+        return None
+
+
+def _upload_to_s3(local_path: str, s3_key: str) -> bool:
+    """Upload a local file to S3. Returns True on success."""
+    s3 = _get_s3_client()
+    if not s3:
+        return False
+    try:
+        s3.upload_file(local_path, _cfg.S3_BUCKET, s3_key)
+        print(f"  ☁️  Uploaded to s3://{_cfg.S3_BUCKET}/{s3_key}")
+        return True
+    except Exception as e:
+        print(f"  ⚠️  S3 upload failed for {s3_key}: {e}")
+        return False
+
+
+def _download_from_s3(s3_key: str, local_path: str) -> bool:
+    """Download a file from S3 to local path. Returns True on success."""
+    s3 = _get_s3_client()
+    if not s3:
+        return False
+    try:
+        s3.download_file(_cfg.S3_BUCKET, s3_key, local_path)
+        print(f"  ☁️  Downloaded from s3://{_cfg.S3_BUCKET}/{s3_key}")
+        return True
+    except Exception as e:
+        print(f"  ⚠️  S3 download failed for {s3_key}: {e}")
+        return False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -123,6 +169,14 @@ def train_model() -> None:
     _plot_feature_importance(clf)
     _plot_confusion_matrix(y_test, y_pred)
 
+    # ── 7. Upload to S3 (if cloud mode) ──
+    if _cfg.use_s3:
+        print("\n  ☁️  Uploading artifacts to S3...")
+        _upload_to_s3(MODEL_FILE, "models/adaptive_auth_model.pkl")
+        _upload_to_s3(ENCODER_FILE, "models/label_encoders.pkl")
+        _upload_to_s3(FEATURE_IMG, "charts/feature_importance.png")
+        _upload_to_s3(CONFUSION_IMG, "charts/confusion_matrix.png")
+
     print("\n" + "=" * 60)
     print("  🎉  Training complete — all artifacts saved.")
     print("=" * 60 + "\n")
@@ -187,9 +241,15 @@ _cached_encoders = None
 
 
 def _load_artifacts():
-    """Lazy‑load model and encoders once."""
+    """Lazy-load model and encoders. Downloads from S3 if local files are missing."""
     global _cached_model, _cached_encoders
     if _cached_model is None:
+        # If local files missing but S3 is configured, download them
+        if not os.path.exists(MODEL_FILE) and _cfg.use_s3:
+            print("  ☁️  Local model not found — downloading from S3...")
+            _download_from_s3("models/adaptive_auth_model.pkl", MODEL_FILE)
+            _download_from_s3("models/label_encoders.pkl", ENCODER_FILE)
+
         _cached_model = joblib.load(MODEL_FILE)
         _cached_encoders = joblib.load(ENCODER_FILE)
     return _cached_model, _cached_encoders

@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Dashboard — Adaptive Auth</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #0a0e1a;
+            --bg-sec: #111827;
+            --bg-card: #1a1f35;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --green: #10b981;
+            --orange: #f59e0b;
+            --red: #ef4444;
+            --cyan: #06b6d4;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border: #1e293b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        /* Nav */
+        .top-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 2rem;
+            background: var(--bg-sec);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .top-nav .logo {
+            font-size: 1.1rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-light), var(--cyan));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+
+        .top-nav .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .top-nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+        }
+
+        .top-nav a:hover {
+            color: var(--text);
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .page-subtitle {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+        }
+
+        /* Stats Cards */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 0.8rem;
+            padding: 1.5rem;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-bottom: 0.3rem;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 800;
+        }
+
+        .stat-value.green {
+            color: var(--green);
+        }
+
+        .stat-value.accent {
+            color: var(--accent-light);
+        }
+
+        .stat-value.orange {
+            color: var(--orange);
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        /* API Key Row */
+        .key-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            padding: 1rem;
+            border: 1px solid var(--border);
+            border-radius: 0.6rem;
+            margin-bottom: 0.8rem;
+            background: rgba(17, 24, 39, 0.5);
+        }
+
+        .key-info {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .key-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .key-meta {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 0.2rem;
+        }
+
+        .key-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            background: var(--bg);
+            padding: 0.4rem 0.8rem;
+            border-radius: 0.4rem;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .key-value:hover {
+            border-color: var(--accent);
+        }
+
+        .key-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        /* Usage Bar */
+        .usage-bar-container {
+            margin-top: 0.5rem;
+        }
+
+        .usage-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 0.3rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .usage-bar {
+            height: 6px;
+            background: var(--bg);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .usage-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .usage-fill.low {
+            background: var(--green);
+        }
+
+        .usage-fill.mid {
+            background: var(--orange);
+        }
+
+        .usage-fill.high {
+            background: var(--red);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            font-size: 0.82rem;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #4f46e5);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--red);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.25);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--accent-light);
+            border: 1px solid var(--accent-light);
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 2rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .badge-active {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--green);
+        }
+
+        .badge-revoked {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--red);
+        }
+
+        .badge-plan {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--accent-light);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 2rem;
+            width: 90%;
+            max-width: 440px;
+        }
+
+        .modal h2 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+        }
+
+        .modal .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .modal label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 0.3rem;
+        }
+
+        .modal input,
+        .modal select {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            border-radius: 0.4rem;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+
+        .modal input:focus,
+        .modal select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.8rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+        }
+
+        /* Flash */
+        .flash-container {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            z-index: 200;
+        }
+
+        .flash {
+            padding: 0.8rem 1.2rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            animation: slideIn 0.3s ease;
+        }
+
+        .flash-success {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid var(--green);
+            color: var(--green);
+        }
+
+        .flash-danger {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid var(--red);
+            color: var(--red);
+        }
+
+        .flash-warning {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid var(--orange);
+            color: var(--orange);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+
+        .empty-state p {
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .key-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="flash-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}{% for cat, msg in messages %}
+        <div class="flash flash-{{ cat }}">{{ msg }}</div>
+        {% endfor %}{% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Nav -->
+    <div class="top-nav">
+        <a href="/" class="logo">🛡️ AdaptiveAuth</a>
+        <div class="nav-right">
+            <a href="/api-docs">API Docs</a>
+            <a href="/dashboard">Threat Monitor</a>
+            <a href="/pricing">Pricing</a>
+            <a href="/logout" style="color:var(--red);">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1>API Dashboard</h1>
+        <p class="page-subtitle">Welcome back, {{ user.username }}. Manage your API keys and monitor usage.</p>
+
+        <!-- Stats -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Active Keys</div>
+                <div class="stat-value accent">{{ keys | selectattr('is_active') | list | length }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Calls Today</div>
+                <div class="stat-value green">{{ keys | sum(attribute='calls_today') }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Calls This Month</div>
+                <div class="stat-value orange">{{ keys | sum(attribute='calls_this_month') }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Current Plan</div>
+                <div class="stat-value" style="font-size:1.3rem;">{{ keys[0].plan_name if keys else 'Free' }}</div>
+            </div>
+        </div>
+
+        <!-- API Keys -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">🔑 Your API Keys</span>
+                <button class="btn btn-primary"
+                    onclick="document.getElementById('newKeyModal').classList.add('active')">+ New Key</button>
+            </div>
+
+            {% if keys %}
+            {% for key in keys %}
+            <div class="key-item">
+                <div class="key-info">
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                        <span class="key-name">{{ key.name }}</span>
+                        {% if key.is_active %}
+                        <span class="badge badge-active">Active</span>
+                        {% else %}
+                        <span class="badge badge-revoked">Revoked</span>
+                        {% endif %}
+                        <span class="badge badge-plan">{{ key.plan_name }}</span>
+                    </div>
+                    <div class="key-meta">Created: {{ key.created_at }}{% if key.revoked_at %} · Revoked: {{
+                        key.revoked_at }}{% endif %}</div>
+                    {% if key.is_active %}
+                    <div class="usage-bar-container">
+                        <div class="usage-label">
+                            <span>{{ key.calls_this_month }} / {{ "{:,}".format(key.monthly_limit) }} calls</span>
+                            <span>{{ ((key.calls_this_month / key.monthly_limit * 100) if key.monthly_limit else 0) |
+                                int }}%</span>
+                        </div>
+                        <div class="usage-bar">
+                            {% set pct = ((key.calls_this_month / key.monthly_limit * 100) if key.monthly_limit else 0)
+                            | int %}
+                            <div class="usage-fill {{ 'low' if pct < 60 else ('mid' if pct < 90 else 'high') }}"
+                                data-pct="{{ pct }}"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if key.is_active %}
+                <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:flex-end;">
+                    <div class="key-value" onclick="copyKey(this, '{{ key.key }}')">
+                        <span>{{ key.key[:20] }}...{{ key.key[-6:] }}</span>
+                        <span style="font-size:0.7rem;color:var(--accent-light);">📋 Copy</span>
+                    </div>
+                    <div class="key-actions">
+                        <form method="POST" action="/api/keys/{{ key.id }}/revoke"
+                            onsubmit="return confirm('Revoke this key? This cannot be undone.')">
+                            <button type="submit" class="btn btn-danger">Revoke</button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="empty-state">
+                <p>No API keys yet. Create your first key to start using the API.</p>
+                <button class="btn btn-primary"
+                    onclick="document.getElementById('newKeyModal').classList.add('active')">+ Create API Key</button>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Quick Start -->
+        <div class="card">
+            <div class="card-title" style="margin-bottom:1rem;">⚡ Quick Start</div>
+            <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:1rem;">Use your API key to assess login
+                risk. Here's a quick example:</p>
+            <div
+                style="background:var(--bg);border-radius:0.5rem;padding:1rem;font-family:'JetBrains Mono',monospace;font-size:0.82rem;overflow-x:auto;border:1px solid var(--border);">
+                <span style="color:#c084fc;">curl</span> -X POST http://localhost:5000/api/v1/assess \<br>
+                &nbsp;&nbsp;-H <span style="color:#34d399;">"X-API-Key: YOUR_KEY_HERE"</span> \<br>
+                &nbsp;&nbsp;-H <span style="color:#34d399;">"Content-Type: application/json"</span> \<br>
+                &nbsp;&nbsp;-d <span
+                    style="color:#34d399;">'{"country":"Russia","threat_score":85,"hour_of_day":3}'</span>
+            </div>
+            <p style="color:var(--text-muted);font-size:0.82rem;margin-top:0.8rem;">
+                <a href="/api-docs" style="color:var(--accent-light);text-decoration:none;">View full API documentation
+                    →</a>
+            </p>
+        </div>
+    </div>
+
+    <!-- New Key Modal -->
+    <div class="modal-overlay" id="newKeyModal">
+        <div class="modal">
+            <h2>Create New API Key</h2>
+            <form method="POST" action="/api/keys/create">
+                <div class="form-group">
+                    <label for="key_name">Key Name</label>
+                    <input type="text" id="key_name" name="key_name" placeholder="e.g. Production, Staging"
+                        value="API Key">
+                </div>
+                <div class="form-group">
+                    <label for="plan">Plan</label>
+                    <select id="plan" name="plan">
+                        {% for p in plans %}
+                        <option value="{{ p.name }}">{{ p.display_name }} — {{ "{:,}".format(p.monthly_limit) }}
+                            calls/mo {% if p.price_cents > 0 %}(${{ p.price_cents // 100 }}/mo){% else %}(Free){% endif
+                            %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline"
+                        onclick="document.getElementById('newKeyModal').classList.remove('active')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Key</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function copyKey(el, key) {
+            navigator.clipboard.writeText(key).then(() => {
+                const orig = el.querySelector('span:last-child').textContent;
+                el.querySelector('span:last-child').textContent = '✅ Copied!';
+                setTimeout(() => el.querySelector('span:last-child').textContent = orig, 2000);
+            });
+        }
+        document.getElementById('newKeyModal').addEventListener('click', function (e) {
+            if (e.target === this) this.classList.remove('active');
+        });
+        setTimeout(() => document.querySelectorAll('.flash').forEach(f => f.style.display = 'none'), 5000);
+        document.querySelectorAll('.usage-fill[data-pct]').forEach(el => {
+            el.style.width = el.dataset.pct + '%';
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,11 @@
+Adaptive Auth System — Classification Report
+==================================================
+
+              precision    recall  f1-score   support
+
+        Safe       0.94      0.99      0.97      1567
+        Risk       0.95      0.78      0.86       433
+
+    accuracy                           0.94      2000
+   macro avg       0.95      0.89      0.91      2000
+weighted avg       0.94      0.94      0.94      2000

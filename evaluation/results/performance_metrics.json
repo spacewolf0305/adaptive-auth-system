@@ -1,0 +1,67 @@
+{
+  "mode": "offline",
+  "single_thread": {
+    "iterations": 1000,
+    "mean_ms": 27.0621,
+    "median_ms": 26.7501,
+    "p95_ms": 28.3072,
+    "p99_ms": 31.5348,
+    "min_ms": 25.5283,
+    "max_ms": 94.4287,
+    "std_ms": 2.5877
+  },
+  "throughput_per_sec": 37.0,
+  "concurrent": {
+    "5_threads": {
+      "threads": 5,
+      "total_requests": 250,
+      "total_time_seconds": 5.454,
+      "throughput_per_sec": 45.8,
+      "mean_ms": 108.3,
+      "median_ms": 106.4568,
+      "p95_ms": 142.2636,
+      "p99_ms": 171.5531
+    },
+    "10_threads": {
+      "threads": 10,
+      "total_requests": 500,
+      "total_time_seconds": 11.074,
+      "throughput_per_sec": 45.2,
+      "mean_ms": 219.7166,
+      "median_ms": 182.0181,
+      "p95_ms": 472.0613,
+      "p99_ms": 631.7909
+    },
+    "25_threads": {
+      "threads": 25,
+      "total_requests": 1250,
+      "total_time_seconds": 28.124,
+      "throughput_per_sec": 44.4,
+      "mean_ms": 557.2282,
+      "median_ms": 399.6247,
+      "p95_ms": 1445.0978,
+      "p99_ms": 2411.9239
+    },
+    "50_threads": {
+      "threads": 50,
+      "total_requests": 2500,
+      "total_time_seconds": 61.367,
+      "throughput_per_sec": 40.7,
+      "mean_ms": 1215.1203,
+      "median_ms": 862.0491,
+      "p95_ms": 3481.5033,
+      "p99_ms": 5702.0387
+    }
+  },
+  "latency_distribution": {
+    "percentiles": {
+      "p10": 26.1511,
+      "p25": 26.4143,
+      "p50": 26.7501,
+      "p75": 27.2118,
+      "p90": 27.8249,
+      "p95": 28.3072,
+      "p99": 31.5348
+    }
+  }
+}

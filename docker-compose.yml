@@ -1,0 +1,55 @@
+# ═══════════════════════════════════════════════════════════════
+#  Adaptive Auth System — Local Development Stack
+#  Mirrors the AWS cloud setup for consistent dev/prod parity
+#  Usage: docker-compose up --build
+# ═══════════════════════════════════════════════════════════════
+
+version: "3.8"
+
+services:
+  # ── PostgreSQL (mirrors AWS RDS) ──
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: adaptiveauth
+      POSTGRES_USER: auth_user
+      POSTGRES_PASSWORD: auth_dev_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U auth_user -d adaptiveauth" ]
+      interval: 5s
+      retries: 5
+
+  # ── Redis (mirrors AWS ElastiCache) ──
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      retries: 5
+
+  # ── Flask Application ──
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      # Cloud-mode config pointing to local containers
+      DATABASE_URL: "postgresql://auth_user:auth_dev_pass@postgres:5432/adaptiveauth"
+      REDIS_URL: "redis://redis:6379/0"
+      SECRET_KEY: "local-dev-secret-key"
+      FLASK_ENV: "development"
+      # S3_BUCKET is intentionally not set → uses local model files
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:

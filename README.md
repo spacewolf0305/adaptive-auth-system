@@ -1,12 +1,12 @@
 **Conceptualized and Developed by Satwik Basu**
 
-# 🛡️ Adaptive Authentication System
+# 🛡️ Adaptive Authentication System in Cloud
 
-> AI-powered risk-based login system combining a trained Random Forest classifier with a real-time Flask web application.
+> AI-powered risk-based login system combining a trained Random Forest classifier with a real-time Flask web application, **deployed on AWS Cloud**.
 
 ---
 
-## 📐 Architecture
+## ☁️ Cloud Architecture
 
 ```
 ┌───────────────┐     ┌──────────────────┐     ┌─────────────────┐
@@ -25,58 +25,91 @@
                                               │ 0.3–0.7 → MFA   │
                                               │ >0.7 → BLOCK     │
                                               └──────────────────┘
+
+              ┌──────────────── AWS Cloud ────────────────┐
+              │                                           │
+              │  ┌─────────────┐    ┌──────────────────┐  │
+              │  │  RDS        │    │  ElastiCache     │  │
+              │  │  PostgreSQL │    │  Redis           │  │
+              │  │  (Database) │    │  (Rate Limiting  │  │
+              │  │             │    │   & Sessions)    │  │
+              │  └─────────────┘    └──────────────────┘  │
+              │                                           │
+              │  ┌─────────────┐    ┌──────────────────┐  │
+              │  │  S3 Bucket  │    │ Elastic Beanstalk│  │
+              │  │  (ML Models │    │  (App Hosting    │  │
+              │  │   & Charts) │    │   + Auto-Scale)  │  │
+              │  └─────────────┘    └──────────────────┘  │
+              └───────────────────────────────────────────┘
 ```
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Python 3.9+
-- pip
+### Option 1: Run Locally (No AWS Required)
 
-### 1. Install Dependencies
 ```bash
-cd adaptive_auth
 pip install -r requirements.txt
-```
-
-### 2. Generate Data & Train Model
-```bash
 python generate_data.py
 python risk_engine.py
-```
-This produces:
-- `synthetic_auth_data.csv` — 10,000 labeled login attempts
-- `adaptive_auth_model.pkl` — Trained Random Forest (200 trees)
-- `feature_importance.png` — Top risk factors chart
-- `confusion_matrix.png` — Model accuracy visualization
-
-### 3. Start the Server
-```bash
 python app.py
 ```
-Open in browser:
-- **Login:** http://localhost:5000/login
-- **Dashboard:** http://localhost:5000/dashboard
-- **Research Artifacts:** http://localhost:5000/research
+Open: http://localhost:5000/login — Demo credentials: `admin` / `admin123`
 
-Demo credentials: `admin` / `admin123`
+### Option 2: Run with Docker Compose (Cloud-like Local Stack)
 
-### 4. Run Attack Simulation
 ```bash
-# Balanced mix
-python attack_sim.py --count 50
+docker-compose up --build
+```
+This spins up PostgreSQL + Redis + Flask locally, mirroring the AWS cloud setup.
 
-# Demo mode (70% high-risk — floods dashboard with red blocks)
-python attack_sim.py --demo --count 60
+### Option 3: Deploy to AWS Cloud
 
-# Wave mode (3 escalating phases for cinematic demos)
-python attack_sim.py --wave --count 45
+#### Prerequisites
+- AWS CLI configured (`aws configure`)
+- EB CLI installed (`pip install awsebcli`)
+
+#### Step 1: Create AWS Resources
+```bash
+# Create S3 bucket for ML models
+aws s3 mb s3://adaptive-auth-models --region us-east-1
+
+# Train model and upload to S3
+S3_BUCKET=adaptive-auth-models python risk_engine.py
+
+# Create RDS PostgreSQL instance (free tier)
+aws rds create-db-instance \
+    --db-instance-identifier adaptive-auth-db \
+    --db-instance-class db.t3.micro \
+    --engine postgres \
+    --master-username auth_user \
+    --master-user-password your-secure-password \
+    --allocated-storage 20
+
+# Create ElastiCache Redis cluster (free tier)
+aws elasticache create-cache-cluster \
+    --cache-cluster-id adaptive-auth-cache \
+    --cache-node-type cache.t3.micro \
+    --engine redis \
+    --num-cache-nodes 1
 ```
 
-### 5. Docker Deployment
+#### Step 2: Deploy with Elastic Beanstalk
 ```bash
-docker build -t adaptive-auth .
-docker run -p 5000:5000 adaptive-auth
+eb init adaptive-auth-system --platform docker --region us-east-1
+eb create adaptive-auth-prod
+
+# Set environment variables
+eb setenv \
+    DATABASE_URL=postgresql://auth_user:your-password@rds-endpoint:5432/adaptiveauth \
+    REDIS_URL=redis://elasticache-endpoint:6379/0 \
+    S3_BUCKET=adaptive-auth-models \
+    SECRET_KEY=your-production-secret-key \
+    AWS_REGION=us-east-1
+```
+
+#### Step 3: Open Your App
+```bash
+eb open
 ```
 
 ---
@@ -84,26 +117,49 @@ docker run -p 5000:5000 adaptive-auth
 ## 📂 Project Structure
 
 ```
-adaptive_auth/
-├── generate_data.py          # Synthetic dataset generator
-├── risk_engine.py            # ML training + inference
-├── models.py                 # SQLAlchemy ORM models
-├── app.py                    # Flask application
+adaptive-auth-system/
+├── config.py                 # ☁️ Cloud/Local config (env vars)
+├── app.py                    # Flask app (Redis rate-limiter)
+├── models.py                 # SQLAlchemy ORM (RDS/SQLite)
+├── risk_engine.py            # ML engine (S3 model storage)
 ├── attack_sim.py             # Brute-force attack simulator
-├── requirements.txt          # Python dependencies
-├── Dockerfile                # Container configuration
-├── synthetic_auth_data.csv   # Generated training data
-├── adaptive_auth_model.pkl   # Trained model
-├── label_encoders.pkl        # Feature encoders
-├── feature_importance.png    # Research chart
-├── confusion_matrix.png      # Research chart
-├── auth.db                   # SQLite database (auto-created)
-└── templates/
-    ├── login.html            # Login + Attacker Simulator
-    ├── mfa.html              # MFA challenge page
-    ├── dashboard.html        # Live threat dashboard
-    └── research.html         # Model performance viewer
+├── generate_data.py          # Synthetic dataset generator
+├── requirements.txt          # Python deps (incl. AWS SDK)
+├── Dockerfile                # Cloud-ready container
+├── docker-compose.yml        # Local dev stack (PG + Redis)
+├── .ebextensions/
+│   ├── 01_flask.config       # EB app + auto-scaling config
+│   └── 02_packages.config    # System packages for RDS
+├── templates/
+│   ├── login.html            # Login + Attacker Simulator
+│   ├── mfa.html              # MFA challenge page
+│   ├── dashboard.html        # Live threat dashboard
+│   └── research.html         # Model performance viewer
+├── adaptive_auth_model.pkl   # Trained model (or from S3)
+├── label_encoders.pkl        # Feature encoders (or from S3)
+└── auth.db                   # SQLite (local mode only)
 ```
+
+## ☁️ Cloud Services Used
+
+| AWS Service | Purpose | Free Tier |
+|---|---|---|
+| **RDS PostgreSQL** | User accounts & login audit logs | db.t3.micro (750 hrs/mo) |
+| **ElastiCache Redis** | Rate limiting, sessions, IP bans | cache.t3.micro (750 hrs/mo) |
+| **S3** | ML model & chart artifact storage | 5 GB free |
+| **Elastic Beanstalk** | App hosting with auto-scaling | t3.micro (750 hrs/mo) |
+
+## 🔌 Environment Variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `DATABASE_URL` | No | `sqlite:///auth.db` | PostgreSQL RDS connection string |
+| `REDIS_URL` | No | `None` (in-memory) | ElastiCache Redis endpoint |
+| `S3_BUCKET` | No | `None` (local files) | S3 bucket for ML artifacts |
+| `AWS_REGION` | No | `us-east-1` | AWS region |
+| `SECRET_KEY` | Yes | dev key | Flask session encryption key |
+
+> When no cloud env vars are set, the app runs in **local mode** with SQLite + in-memory rate limiting.
 
 ## 🧠 How the AI Works
 
@@ -123,10 +179,11 @@ The Random Forest classifier uses **7 features** to score each login attempt:
 
 - **Adaptive AI scoring** — risk-proportional response (allow/challenge/block)
 - **MFA with TOTP** — time-based one-time passwords via PyOTP
-- **IP rate limiting** — auto-bans IPs after 5 blocks within 10 minutes
+- **IP rate limiting** — Redis-backed auto-bans (persistent across restarts in cloud)
 - **Geo-distance tracking** — detects impossible travel patterns
-- **Full audit logging** — every attempt recorded with risk factors
+- **Full audit logging** — every attempt recorded in PostgreSQL with risk factors
 - **Password hashing** — Werkzeug scrypt hashing
+- **Server-side sessions** — Redis-backed sessions (no sensitive data in cookies)
 
 ## 📊 API Endpoints
 
@@ -140,6 +197,14 @@ The Random Forest classifier uses **7 features** to score each login attempt:
 | `/api/export` | GET | Download all logs as CSV |
 | `/api/clear` | POST | Reset all logs and bans |
 | `/logout` | GET | End session |
+
+## 🔧 Attack Simulation
+
+```bash
+python attack_sim.py --count 50          # Balanced mix
+python attack_sim.py --demo --count 60   # 70% high-risk flood
+python attack_sim.py --wave --count 45   # 3-phase escalating attack
+```
 
 ---
 
