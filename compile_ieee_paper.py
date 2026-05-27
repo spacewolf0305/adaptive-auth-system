@@ -52,8 +52,8 @@ class IEEEPaper(FPDF):
         self.set_font("Helvetica", "", 12)
         self.cell(0, 6, "Satwik Basu", align="C", new_x="LMARGIN", new_y="NEXT")
         self.set_font("Helvetica", "I", 10)
-        self.set_text_color(60, 60, 60)
-        self.cell(0, 5, "Department of Computer Science", align="C", new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 5, "VIT Bhopal University", align="C", new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 5, "Pune, India", align="C", new_x="LMARGIN", new_y="NEXT")
         self.cell(0, 5, "satwikbasu03@gmail.com", align="C", new_x="LMARGIN", new_y="NEXT")
         self.ln(10)
         # Abstract box
