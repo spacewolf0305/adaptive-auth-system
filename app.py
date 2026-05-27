@@ -1,8 +1,8 @@
 """
 =============================================================================
- Adaptive Authentication System in Cloud — Flask Application
+ Adaptive Authentication System in Cloud -- Flask Application
  Routes: /login, /mfa, /dashboard, /research, /api/stats, /api/export, /logout
- Cloud:  AWS RDS (PostgreSQL) · ElastiCache (Redis) · S3 (ML Models)
+ Cloud:  AWS RDS (PostgreSQL) * ElastiCache (Redis) * S3 (ML Models)
 =============================================================================
 """
 
@@ -29,7 +29,7 @@ from models import db, User, LoginLog, Plan, APIKey, APIUsage
 from risk_engine import predict_risk
 import uuid as uuid_mod
 
-# ─── App Factory ──────────────────────────────────────────────────────────────
+# --- App Factory --------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 cfg = Config()
 
@@ -41,14 +41,14 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(minutes=cfg.PERMANENT_SESSION_LIFETIME_MINUTES),
 )
 
-# ─── Redis Session Store (cloud) or default cookie sessions (local) ──────────
+# --- Redis Session Store (cloud) or default cookie sessions (local) ----------
 _redis_client = None
 if cfg.use_redis:
     try:
         import redis as redis_lib
         _redis_client = redis_lib.from_url(cfg.REDIS_URL, decode_responses=True)
         _redis_client.ping()
-        print(f"  ✅  Redis connected: {cfg.REDIS_URL}")
+        print(f"  [OK]  Redis connected: {cfg.REDIS_URL}")
 
         # Use server-side sessions stored in Redis
         from flask_session import Session
@@ -57,7 +57,7 @@ if cfg.use_redis:
         app.config["SESSION_PERMANENT"] = True
         Session(app)
     except Exception as e:
-        print(f"  ⚠️  Redis unavailable ({e}), falling back to in-memory")
+        print(f"  [WARN] Redis unavailable ({e}), falling back to in-memory")
         _redis_client = None
 
 db.init_app(app)
@@ -81,7 +81,7 @@ def login_required(f):
     return decorated
 
 
-# ─── Rate Limiter (Redis-backed in cloud, in-memory locally) ─────────────────
+# --- Rate Limiter (Redis-backed in cloud, in-memory locally) -----------------
 RATE_LIMIT_WINDOW = 600   # 10 minutes
 RATE_LIMIT_MAX    = 5     # max blocks before auto-ban
 
@@ -129,9 +129,9 @@ def _record_block(ip: str):
             _banned_ips.add(ip)
 
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
+# --- Helpers ------------------------------------------------------------------
 
-# Rough lat/lon centroids for geo‑distance estimation
+# Rough lat/lon centroids for geo-distance estimation
 COUNTRY_COORDS: dict[str, tuple[float, float]] = {
     "United States": (38.0, -97.0), "United Kingdom": (54.0, -2.0),
     "India": (20.0, 78.0), "China": (35.0, 105.0), "Russia": (61.0, 105.0),
@@ -164,7 +164,7 @@ def _haversine(lat1, lon1, lat2, lon2) -> float:
 
 
 def _geo_lookup(ip: str) -> dict:
-    """Get geolocation from ip‑api.com, fallback to defaults."""
+    """Get geolocation from ip-api.com, fallback to defaults."""
     try:
         resp = http_requests.get(
             f"http://ip-api.com/json/{ip}?fields=status,country,regionName",
@@ -200,7 +200,7 @@ def _simulate_threat_score(ip: str) -> int:
 
 
 def _detect_device(user_agent: str) -> str:
-    """Basic device type detection from User‑Agent string."""
+    """Basic device type detection from User-Agent string."""
     ua = (user_agent or "").lower()
     if "mobile" in ua or "android" in ua or "iphone" in ua:
         return "mobile"
@@ -211,7 +211,7 @@ def _detect_device(user_agent: str) -> str:
     return "desktop"
 
 
-# ─── Seed Demo User ──────────────────────────────────────────────────────────
+# --- Seed Demo User ----------------------------------------------------------
 
 def _seed_demo_user():
     """Create a demo user (admin/admin123) with MFA if not exists."""
@@ -227,9 +227,9 @@ def _seed_demo_user():
         totp_uri = pyotp.totp.TOTP(mfa_secret).provisioning_uri(
             name="admin", issuer_name="AdaptiveAuth"
         )
-        print(f"\n  👤  Demo user created: admin / admin123")
-        print(f"  🔑  MFA Secret : {mfa_secret}")
-        print(f"  📱  OTP URI    : {totp_uri}\n")
+        print(f"\n  [user]  Demo user created: admin / admin123")
+        print(f"  [key]  MFA Secret : {mfa_secret}")
+        print(f"  [phone]  OTP URI    : {totp_uri}\n")
 
 
 def _seed_plans():
@@ -248,12 +248,12 @@ def _seed_plans():
         if not Plan.query.filter_by(name=p["name"]).first():
             db.session.add(Plan(**p))
     db.session.commit()
-    print(f"  💰  {Plan.query.count()} pricing plans ready")
+    print(f"  []  {Plan.query.count()} pricing plans ready")
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 #  ROUTES
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 
 @app.route("/")
 def index():
@@ -261,14 +261,14 @@ def index():
     return render_template("landing.html", plans=plans)
 
 
-# ─── Login ────────────────────────────────────────────────────────────────────
+# --- Login --------------------------------------------------------------------
 
 @app.route("/login", methods=["GET", "POST"])
 def login_page():
     if request.method == "GET":
         return render_template("login.html")
 
-    # ── Collect inputs ──
+    # -- Collect inputs --
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")
 
@@ -282,7 +282,7 @@ def login_page():
 
     ip = sim_ip or request.remote_addr or "127.0.0.1"
 
-    # ── Rate‑limit check ──
+    # -- Rate-limit check --
     if _check_rate_limit(ip):
         log = LoginLog(
             ip_address=ip,
@@ -294,16 +294,16 @@ def login_page():
         )
         db.session.add(log)
         db.session.commit()
-        flash(f"⛔ IP {ip} auto‑banned — too many blocked attempts.", "danger")
+        flash(f"[!] IP {ip} auto-banned -- too many blocked attempts.", "danger")
         return render_template("login.html"), 403
 
-    # ── Step 1: Geo‑Location ──
+    # -- Step 1: Geo-Location --
     if sim_country:
         geo = {"country": sim_country, "region": sim_region or "Unknown"}
     else:
         geo = _geo_lookup(ip)
 
-    # ── Authenticate ──
+    # -- Authenticate --
     user = User.query.filter_by(username=username).first()
     if not user or not check_password_hash(user.password_hash, password):
         # Still log the attempt
@@ -320,7 +320,7 @@ def login_page():
         flash("Invalid credentials.", "danger")
         return render_template("login.html"), 401
 
-    # ── Step 2: Feature Extraction ──
+    # -- Step 2: Feature Extraction --
     device = sim_device or _detect_device(request.user_agent.string)
     distance = float(sim_dist) if sim_dist else _calc_distance(geo["country"], user.id)
     threat = int(sim_threat) if sim_threat else _simulate_threat_score(ip)
@@ -331,7 +331,7 @@ def login_page():
 
     now = datetime.now(timezone.utc)
 
-    # ── Step 3: AI Decision ──
+    # -- Step 3: AI Decision --
     risk = predict_risk({
         "country": geo["country"],
         "region": geo["region"],
@@ -342,7 +342,7 @@ def login_page():
         "distance_from_last_login": distance,
     })
 
-    # ── Step 4: Adaptive Action ──
+    # -- Step 4: Adaptive Action --
     if risk < 0.3:
         action = "ALLOW"
     elif risk <= 0.7:
@@ -350,7 +350,7 @@ def login_page():
     else:
         action = "BLOCK"
 
-    # ── Log ──
+    # -- Log --
     log = LoginLog(
         user_id=user.id,
         ip_address=ip,
@@ -365,10 +365,10 @@ def login_page():
     db.session.add(log)
     db.session.commit()
 
-    # ── Respond ──
+    # -- Respond --
     if action == "BLOCK":
         _record_block(ip)
-        flash(f"🚫 Access BLOCKED — Risk score {risk:.2f}", "danger")
+        flash(f"[blocked] Access BLOCKED -- Risk score {risk:.2f}", "danger")
         return render_template("login.html"), 403
 
     if action == "MFA":
@@ -378,11 +378,11 @@ def login_page():
 
     # ALLOW
     session["user_id"] = user.id
-    flash(f"✅ Welcome, {user.username}! Risk: {risk:.2f}", "success")
+    flash(f"[OK] Welcome, {user.username}! Risk: {risk:.2f}", "success")
     return redirect(url_for("dashboard_page"))
 
 
-# ─── MFA ──────────────────────────────────────────────────────────────────────
+# --- MFA ----------------------------------------------------------------------
 
 @app.route("/mfa", methods=["GET", "POST"])
 def mfa_page():
@@ -412,21 +412,21 @@ def mfa_page():
                 log.action_taken = "MFA_PASS"
                 db.session.commit()
 
-        flash("✅ MFA verified — access granted!", "success")
+        flash("[OK] MFA verified -- access granted!", "success")
         return redirect(url_for("dashboard_page"))
     else:
-        flash("❌ Invalid MFA code. Try again.", "danger")
+        flash("[X] Invalid MFA code. Try again.", "danger")
         return render_template("mfa.html", mfa_secret=user.mfa_secret)
 
 
-# ─── Dashboard ────────────────────────────────────────────────────────────────
+# --- Dashboard ----------------------------------------------------------------
 
 @app.route("/dashboard")
 def dashboard_page():
     return render_template("dashboard.html")
 
 
-# ─── Research Artifacts ───────────────────────────────────────────────────────
+# --- Research Artifacts -------------------------------------------------------
 
 @app.route("/research")
 def research_page():
@@ -439,16 +439,16 @@ def serve_static_file(filename):
     return send_from_directory(BASE_DIR, filename)
 
 
-# ─── Logout ───────────────────────────────────────────────────────────────────
+# --- Logout -------------------------------------------------------------------
 
 @app.route("/logout")
 def logout():
     session.clear()
-    flash("🔒 You have been logged out.", "success")
+    flash("[lock] You have been logged out.", "success")
     return redirect(url_for("login_page"))
 
 
-# ─── API: Stats ───────────────────────────────────────────────────────────────
+# --- API: Stats ---------------------------------------------------------------
 
 @app.route("/api/stats")
 def api_stats():
@@ -565,12 +565,12 @@ def api_export():
     )
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  SAAS API — ROUTES
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
+#  SAAS API -- ROUTES
+# ===============================================================================
 
 
-# ─── Helper: monthly usage for an API key ────────────────────────────────────
+# --- Helper: monthly usage for an API key ------------------------------------
 
 def _get_monthly_usage(api_key_id: int) -> int:
     """Return total API calls this calendar month for a given key."""
@@ -583,7 +583,7 @@ def _get_monthly_usage(api_key_id: int) -> int:
     return sum(r.call_count for r in rows)
 
 
-# ─── Signup ───────────────────────────────────────────────────────────────────
+# --- Signup -------------------------------------------------------------------
 
 @app.route("/signup", methods=["GET", "POST"])
 def signup_page():
@@ -629,11 +629,11 @@ def signup_page():
         db.session.commit()
 
     session["user_id"] = user.id
-    flash(f"✅ Welcome, {username}! Your free API key is ready.", "success")
+    flash(f"[OK] Welcome, {username}! Your free API key is ready.", "success")
     return redirect(url_for("api_dashboard"))
 
 
-# ─── Public API: Risk Assessment ──────────────────────────────────────────────
+# --- Public API: Risk Assessment ----------------------------------------------
 
 @app.route("/api/v1/assess", methods=["POST"])
 def api_v1_assess():
@@ -733,7 +733,7 @@ def api_v1_assess():
     })
 
 
-# ─── API Dashboard ────────────────────────────────────────────────────────────
+# --- API Dashboard ------------------------------------------------------------
 
 @app.route("/api-dashboard")
 @login_required
@@ -781,7 +781,7 @@ def api_key_create():
     key = APIKey(user_id=user.id, plan_id=plan.id, name=key_name)
     db.session.add(key)
     db.session.commit()
-    flash(f"✅ New API key created: {key.key[:20]}...", "success")
+    flash(f"[OK] New API key created: {key.key[:20]}...", "success")
     return redirect(url_for("api_dashboard"))
 
 
@@ -796,7 +796,7 @@ def api_key_revoke(key_id):
     key.is_active = False
     key.revoked_at = datetime.now(timezone.utc)
     db.session.commit()
-    flash(f"🔒 API key revoked.", "success")
+    flash(f"[lock] API key revoked.", "success")
     return redirect(url_for("api_dashboard"))
 
 
@@ -821,7 +821,7 @@ def api_usage_stats():
     return jsonify({"keys": result})
 
 
-# ─── Pricing ──────────────────────────────────────────────────────────────────
+# --- Pricing ------------------------------------------------------------------
 
 @app.route("/pricing")
 def pricing_page():
@@ -829,14 +829,14 @@ def pricing_page():
     return render_template("landing.html", plans=plans, scroll_to="pricing")
 
 
-# ─── API Docs ─────────────────────────────────────────────────────────────────
+# --- API Docs -----------------------------------------------------------------
 
 @app.route("/api-docs")
 def api_docs_page():
     return render_template("api_docs.html")
 
 
-# ─── Stripe Billing ──────────────────────────────────────────────────────────
+# --- Stripe Billing ----------------------------------------------------------
 
 @app.route("/billing/checkout", methods=["POST"])
 @login_required
@@ -973,9 +973,9 @@ def billing_portal():
         return redirect(url_for("api_dashboard"))
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 #  STARTUP
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 
 with app.app_context():
     db.create_all()
@@ -985,6 +985,6 @@ with app.app_context():
 
 if __name__ == "__main__":
     cloud_tag = " [CLOUD]" if cfg.is_cloud_mode else " [LOCAL]"
-    print(f"\n  🚀  Adaptive Auth SaaS{cloud_tag} running at http://localhost:5000\n")
+    print(f"\n  [>>]  Adaptive Auth SaaS{cloud_tag} running at http://localhost:5000\n")
     app.run(host="0.0.0.0", port=5000, debug=not cfg.is_cloud_mode)
 

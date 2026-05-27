@@ -59,15 +59,15 @@ class Config:
         return self.S3_BUCKET is not None
 
     def summary(self) -> str:
-        mode = "☁️  CLOUD" if self.is_cloud_mode else "💻  LOCAL"
+        mode = "CLOUD" if self.is_cloud_mode else "LOCAL"
         db = "PostgreSQL (RDS)" if self.is_cloud_mode else "SQLite"
         cache = "Redis (ElastiCache)" if self.use_redis else "In-memory"
         storage = f"S3 ({self.S3_BUCKET})" if self.use_s3 else "Local filesystem"
         return (
-            f"\n  ┌─────────────────────────────────────────┐\n"
-            f"  │  Mode    : {mode:<30}│\n"
-            f"  │  DB      : {db:<30}│\n"
-            f"  │  Cache   : {cache:<30}│\n"
-            f"  │  Storage : {storage:<30}│\n"
-            f"  └─────────────────────────────────────────┘"
+            f"\n  +-------------------------------------------+\n"
+            f"  |  Mode    : {mode:<30}|\n"
+            f"  |  DB      : {db:<30}|\n"
+            f"  |  Cache   : {cache:<30}|\n"
+            f"  |  Storage : {storage:<30}|\n"
+            f"  +-------------------------------------------+"
         )

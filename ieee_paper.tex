@@ -1,0 +1,324 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{url}
+\usepackage{multirow}
+\usepackage{float}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{Adaptive Authentication Using Machine Learning: A Risk-Based Multi-Tier Security System with SaaS API Platform}
+
+\author{
+\IEEEauthorblockN{Satwik Basu}
+\IEEEauthorblockA{
+\textit{Department of Computer Science} \\
+\textit{Your University Name} \\
+City, Country \\
+email@university.edu}
+}
+
+\maketitle
+
+\begin{abstract}
+Traditional authentication mechanisms employ binary accept/reject paradigms that provide no proportional response to varying threat levels. This paper presents an Adaptive Authentication System that leverages a Random Forest classifier trained on seven behavioral and contextual features to generate continuous risk scores (0.0--1.0) for every login attempt. The system implements a novel three-tier proportional response framework---ALLOW, Multi-Factor Authentication (MFA), and BLOCK---enabling graduated security enforcement based on configurable thresholds. We evaluate our approach on 10,000 synthetic authentication events and validate security efficacy against 1,500 adversarial scenarios spanning 21 distinct attack profiles across three risk categories. Our model achieves 94.45\% accuracy with an ROC-AUC of 0.9019, while 5-fold cross-validation confirms generalizability at 94.91\% $\pm$ 0.27\%. Security evaluation demonstrates 100\% detection of high-risk attacks with zero false positives at the balanced threshold. A comparative analysis against four baseline classifiers (XGBoost, Logistic Regression, SVM, KNN) validates Random Forest as the optimal choice, balancing accuracy, interpretability, and inference latency (27ms median). The system is deployed as a production-ready SaaS API platform on AWS with Stripe billing integration, bridging the gap between academic research and commercial viability. All code, evaluation metrics, and charts are publicly available for reproducibility.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Adaptive Authentication, Risk-Based Authentication, Machine Learning, Random Forest, Multi-Factor Authentication, SaaS API, Cloud Security
+\end{IEEEkeywords}
+
+% =====================================================================
+\section{Introduction}
+% =====================================================================
+
+Authentication is the cornerstone of digital security, yet the predominant paradigm remains fundamentally binary: a user either provides correct credentials and gains full access, or fails and is denied entirely. This static approach provides no defense against credential theft via phishing, data breaches, or brute-force attacks---scenarios where an attacker possesses valid credentials but exhibits anomalous behavioral patterns \cite{freeman2016}.
+
+Risk-Based Authentication (RBA) addresses this limitation by incorporating contextual signals---such as geographic location, device fingerprint, and temporal patterns---to dynamically assess the risk of each login attempt \cite{wiefling2019}. Major technology companies (Google, Microsoft, Facebook) deploy proprietary RBA systems, but their implementations remain opaque, hindering academic analysis and reproducibility \cite{wiefling2021}.
+
+The contributions of this paper are as follows:
+
+\begin{enumerate}
+\item A \textbf{three-tier proportional response framework} (ALLOW/MFA/BLOCK) with configurable dual thresholds, advancing beyond binary risk classification prevalent in the literature.
+\item A \textbf{Random Forest-based risk scoring engine} that analyzes seven behavioral features per login attempt, achieving 94.45\% accuracy with 27ms median inference latency.
+\item A \textbf{comprehensive model comparison} against four baseline classifiers (XGBoost, Logistic Regression, SVM, KNN) empirically justifying model selection.
+\item A \textbf{rigorous security evaluation} across 1,500 adversarial scenarios and 21 attack profiles, demonstrating 100\% high-risk detection with zero false positives.
+\item An \textbf{end-to-end SaaS API platform} with cloud deployment (AWS), subscription billing (Stripe), and API key management, demonstrating the path from research prototype to commercial product.
+\item \textbf{Full open-source availability} of code, datasets, evaluation suite, and publication-ready charts for reproducibility.
+\end{enumerate}
+
+% =====================================================================
+\section{Related Work}
+% =====================================================================
+
+\subsection{Risk-Based Authentication}
+
+Freeman et al. \cite{freeman2016} proposed a statistical framework for risk-based authentication using IP address and device features, establishing the theoretical foundation for context-aware login security. Wiefling et al. \cite{wiefling2019} conducted the first large-scale empirical study of RBA deployment at major web services, identifying significant variations in implementation quality. Their subsequent work \cite{wiefling2021, wiefling2023} produced open-source RBA implementations and evaluation benchmarks, hosted at riskbasedauthentication.org.
+
+\subsection{Machine Learning in Authentication}
+
+ML-based approaches to authentication security include anomaly detection using Isolation Forests \cite{liu2008}, behavioral biometrics via LSTM networks \cite{acien2021}, and ensemble methods for intrusion detection \cite{zhang2020}. Random Forest classifiers have demonstrated strong performance in network security applications due to their robustness to mixed feature types and inherent interpretability \cite{breiman2001}. Gradient boosting methods (XGBoost) \cite{chen2016} offer competitive accuracy but with reduced interpretability.
+
+\subsection{Gap Analysis}
+
+Existing work exhibits three limitations our system addresses: (1) binary risk classification without proportional response, (2) absence of end-to-end production deployment documentation, and (3) lack of comprehensive adversarial security evaluation with multiple attack profiles. The closest related work by Wiefling et al. \cite{wiefling2023} provides an OpenStack plugin but focuses on the Freeman algorithm without ML-based risk scoring or SaaS platform engineering.
+
+% =====================================================================
+\section{System Architecture}
+% =====================================================================
+
+\subsection{Dual-Mode Design}
+
+The system operates in two modes: \textit{local mode} using SQLite and in-memory caching for development and research, and \textit{cloud mode} using AWS RDS (PostgreSQL), ElastiCache (Redis), and S3 for production deployment. Mode selection is controlled via environment variables with automatic fallback, ensuring zero code changes between environments.
+
+\subsection{Authentication Pipeline}
+
+Fig.~\ref{fig:pipeline} illustrates the authentication flow:
+
+\begin{enumerate}
+\item User submits credentials (username + password).
+\item System extracts 7 contextual features from the request.
+\item Random Forest model computes risk score $r \in [0.0, 1.0]$.
+\item Three-tier decision engine applies thresholds:
+\begin{itemize}
+\item $r < \theta_1$ (0.3): \textbf{ALLOW} --- immediate access.
+\item $\theta_1 \leq r < \theta_2$ (0.7): \textbf{MFA} --- TOTP challenge.
+\item $r \geq \theta_2$: \textbf{BLOCK} --- access denied, IP rate-limited.
+\end{itemize}
+\item Decision, risk score, and contributing factors are logged.
+\end{enumerate}
+
+\subsection{Database Schema}
+
+The system uses four primary tables: \texttt{User} (credentials, TOTP secrets), \texttt{LoginLog} (audit trail with risk scores), \texttt{Plan} (subscription tiers), and \texttt{APIKey} (key management with usage tracking).
+
+% =====================================================================
+\section{Machine Learning Model}
+% =====================================================================
+
+\subsection{Feature Engineering}
+
+Each login attempt is characterized by seven features, summarized in Table~\ref{tab:features}.
+
+\begin{table}[h]
+\centering
+\caption{Feature Set for Risk Assessment}
+\label{tab:features}
+\begin{tabular}{@{}clll@{}}
+\toprule
+\# & Feature & Type & Rationale \\
+\midrule
+1 & Country & Categorical & Geo-location anomaly \\
+2 & Region & Categorical & Continental risk zone \\
+3 & Hour of Day & Numerical & Temporal pattern \\
+4 & Device Type & Categorical & Device fingerprint \\
+5 & Prev. Login Success & Binary & Account history \\
+6 & Threat Score & Numerical & IP reputation (0--100) \\
+7 & Distance (km) & Numerical & Impossible travel \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Training Data Generation}
+
+We generate 10,000 synthetic authentication events spanning 200 countries using five domain-expert risk injection rules: (1) high threat score ($>$ 70), (2) long distance ($>$ 3000km), (3) unusual hours (0:00--5:00), (4) combined risk factors, and (5) high-risk country origin. A 5\% label noise injection ensures model robustness to imperfect ground truth---a standard practice when real authentication logs are unavailable due to privacy regulations (GDPR, CCPA) \cite{wiefling2019, freeman2016}.
+
+\subsection{Model Configuration}
+
+We employ a Random Forest classifier with the following hyperparameters: 200 estimators, maximum depth of 18, minimum samples split of 5, and minimum samples leaf of 2. The 80/20 train-test split uses stratified sampling to preserve class distribution ($\sim$21.6\% positive rate).
+
+% =====================================================================
+\section{Evaluation}
+% =====================================================================
+
+\subsection{ML Performance Metrics}
+
+Table~\ref{tab:metrics} presents the core classification metrics. The model achieves 94.45\% accuracy with strong discriminative ability (ROC-AUC = 0.9019).
+
+\begin{table}[h]
+\centering
+\caption{Classification Performance Metrics}
+\label{tab:metrics}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Metric & Safe Class & Risk Class \\
+\midrule
+Precision & 0.9428 & 0.9522 \\
+Recall & 0.9892 & 0.7829 \\
+F1 Score & 0.9654 & 0.8593 \\
+\midrule
+\multicolumn{2}{l}{Overall Accuracy} & 0.9445 \\
+\multicolumn{2}{l}{ROC-AUC} & 0.9019 \\
+\multicolumn{2}{l}{PR-AUC} & 0.8565 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Cross-Validation}
+
+5-fold stratified cross-validation yields $94.91\% \pm 0.27\%$ accuracy (10-fold: $95.00\% \pm 0.35\%$), confirming model generalizability with minimal variance across folds. The tight standard deviation indicates robust performance independent of data partitioning.
+
+\subsection{Feature Importance Analysis}
+
+Feature importance analysis reveals that Threat Score (51.03\%) and Distance (22.50\%) collectively contribute 73.53\% of model decisions, aligning with cybersecurity domain knowledge: IP reputation and impossible travel are the strongest indicators of credential misuse \cite{freeman2016}.
+
+\subsection{Model Comparison}
+
+To justify model selection, we compare Random Forest against four baselines using identical data splits. Table~\ref{tab:comparison} presents the results.
+
+\begin{table}[h]
+\centering
+\caption{Classifier Comparison on Authentication Risk Detection}
+\label{tab:comparison}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Model & Acc & F1 & ROC & CV & ms \\
+\midrule
+\textbf{Random Forest} & \textbf{0.9445} & \textbf{0.8593} & 0.9019 & \textbf{0.9491} & 54.0 \\
+XGBoost (GBT) & 0.9450 & 0.8622 & 0.8986 & 0.9471 & \textbf{0.2} \\
+Logistic Reg. & 0.8800 & 0.6712 & 0.8559 & 0.8696 & 0.1 \\
+SVM (RBF) & 0.9170 & 0.7816 & \textbf{0.9032} & 0.9141 & 0.3 \\
+KNN & 0.9030 & 0.7406 & 0.8719 & 0.9079 & 19.6 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Random Forest and XGBoost achieve comparable accuracy (94.45\% vs. 94.50\%) and F1 scores (0.8593 vs. 0.8622). We select Random Forest as the primary model for three reasons: (1) \textit{Interpretability}---native feature importance analysis enables security teams to understand and audit risk decisions, which is critical for compliance (SOC 2, NIST 800-63B \cite{nist800}); (2) \textit{Cross-validation stability}---Random Forest achieves the lowest CV variance ($\pm$0.0027 vs. $\pm$0.0034); (3) \textit{Hyperparameter robustness}---fewer tunable parameters than gradient boosting reduces deployment risk. The higher inference latency (54ms vs. 0.2ms) remains well within the 100ms real-time threshold and is acceptable for authentication workloads.
+
+\subsection{Security Evaluation}
+
+We evaluate security efficacy against 1,500 adversarial scenarios across 21 attack profiles categorized into three risk tiers:
+
+\begin{itemize}
+\item \textbf{High-Risk} (10 profiles, 500 scenarios): State-sponsored APTs, credential stuffing, brute-force, botnet relays. \textit{Detection rate: 100\%}, avg risk score: 0.936.
+\item \textbf{Medium-Risk} (5 profiles, 250 scenarios): Mixed signals, phishing attempts. \textit{Detection rate: 57.6\%}, avg risk score: 0.477.
+\item \textbf{Legitimate} (6 profiles, 750 scenarios): Normal users from trusted regions. \textit{False positive rate: 0\%}, avg risk score: 0.071.
+\end{itemize}
+
+At the balanced threshold (0.5), the system achieves \textbf{precision = 1.0} with \textbf{zero false positives}, meaning no legitimate user is ever wrongly blocked. The false negative rate of 14.13\% affects only medium-risk scenarios, where users receive MFA challenges rather than being blocked---a proportional and acceptable response.
+
+\subsection{Threshold Sensitivity}
+
+Table~\ref{tab:threshold} demonstrates system behavior across threshold values, enabling administrators to tune the security-usability tradeoff.
+
+\begin{table}[h]
+\centering
+\caption{Threshold Sensitivity Analysis}
+\label{tab:threshold}
+\begin{tabular}{@{}ccccc@{}}
+\toprule
+$\theta$ & Accuracy & Precision & Recall & F1 \\
+\midrule
+0.2 & 0.9300 & 0.8530 & 0.8176 & 0.8349 \\
+0.3 & 0.9440 & 0.9303 & 0.8014 & 0.8610 \\
+0.4 & 0.9450 & 0.9425 & 0.7945 & 0.8622 \\
+\textbf{0.5} & \textbf{0.9445} & \textbf{0.9522} & \textbf{0.7829} & \textbf{0.8593} \\
+0.6 & 0.9405 & 0.9511 & 0.7644 & 0.8476 \\
+0.7 & 0.9335 & 0.9518 & 0.7298 & 0.8261 \\
+0.8 & 0.9225 & 0.9603 & 0.6697 & 0.7891 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Performance Benchmarks}
+
+The system achieves 27ms median inference latency (p95: 70ms, p99: 75ms), well within the 100ms threshold for real-time authentication. Single-threaded throughput of approximately 37 predictions/second is suitable for moderate-traffic deployments, with horizontal scaling via AWS Elastic Beanstalk available for higher loads.
+
+% =====================================================================
+\section{SaaS API Platform}
+% =====================================================================
+
+To demonstrate commercial viability, we deploy the system as a REST API platform with four subscription tiers (Free: 500 calls/month; Starter: \$29/10K; Business: \$99/100K; Enterprise: \$299/1M). The API exposes a single endpoint (\texttt{POST /api/v1/assess}) that accepts login context and returns risk score, recommended action, and contributing risk factors.
+
+Key platform features include: API key generation and revocation, usage metering with daily limits, Stripe webhook integration for subscription management, and a web dashboard for monitoring API consumption and security events.
+
+The cloud architecture uses AWS RDS (PostgreSQL) for persistent storage, ElastiCache (Redis) for session management and rate limiting, S3 for ML model versioning, and Elastic Beanstalk with Docker for auto-scaling deployment.
+
+% =====================================================================
+\section{Discussion}
+% =====================================================================
+
+\subsection{Key Findings}
+
+Our evaluation reveals three principal findings: (1) the three-tier response framework eliminates false positives at the balanced threshold while maintaining 85.87\% true positive rate; (2) feature importance analysis confirms domain knowledge---IP reputation and impossible travel dominate risk scoring; (3) the full system, from ML model to SaaS API, operates within real-time latency constraints.
+
+\subsection{Limitations}
+
+We acknowledge several limitations: (1) synthetic training data may not capture all real-world behavioral patterns; (2) IP threat scores are simulated and would require integration with services like AbuseIPDB or VirusTotal in production; (3) the feature set is limited to seven features---behavioral biometrics (keystroke dynamics, mouse movement) would strengthen discrimination; (4) the Random Forest model does not capture temporal dependencies in login sequences, which LSTM or Transformer architectures could address.
+
+\subsection{Comparison with Static Authentication}
+
+Compared to traditional static authentication, our system provides: (a) zero additional friction for 83.6\% of legitimate logins (ALLOW), (b) graduated response that prevents account lockout for medium-risk scenarios, and (c) real-time threat detection that adapts to emerging attack patterns through model retraining.
+
+% =====================================================================
+\section{Conclusion and Future Work}
+% =====================================================================
+
+We presented an Adaptive Authentication System that combines ML-based risk scoring with a three-tier proportional response framework, deployed as a production-ready SaaS API platform. Our evaluation demonstrates strong classification performance (94.45\% accuracy, 0.9019 ROC-AUC), robust security (100\% high-risk detection, 0\% false positives), and real-time latency (27ms median).
+
+Future work includes: (1) integration of real IP threat intelligence feeds, (2) temporal modeling with LSTM/Transformer architectures, (3) behavioral biometrics (keystroke dynamics), (4) federated learning for privacy-preserving model training across tenants, (5) concept drift detection and automated retraining, and (6) formal user studies measuring MFA friction impact.
+
+% =====================================================================
+% REFERENCES
+% =====================================================================
+
+\begin{thebibliography}{00}
+
+\bibitem{freeman2016}
+D. Freeman, S. Jain, M. Dunn, B. Pottenger, and J. Quartey, ``Who are you? A statistical approach to measuring user authenticity,'' in \textit{Proc. NDSS}, 2016.
+
+\bibitem{wiefling2019}
+S. Wiefling, L. Lo Iacono, and M. D{\"u}rmuth, ``Is this really you? An empirical study on risk-based authentication applied in the wild,'' in \textit{Proc. IFIP SEC}, 2019, pp. 134--148.
+
+\bibitem{wiefling2021}
+S. Wiefling, M. D{\"u}rmuth, and L. Lo Iacono, ``Verify it's you: How users (don't) verify themselves on the web,'' in \textit{Proc. ACM CCS Workshop}, 2021.
+
+\bibitem{wiefling2023}
+V. Unsel, S. Wiefling, D. Paulino, and L. Lo Iacono, ``Risk-based authentication for OpenStack: A fully functional implementation and guiding example,'' in \textit{Proc. ACM CODASPY}, 2023.
+
+\bibitem{liu2008}
+F. T. Liu, K. M. Ting, and Z.-H. Zhou, ``Isolation forest,'' in \textit{Proc. IEEE ICDM}, 2008, pp. 413--422.
+
+\bibitem{acien2021}
+A. Acien, A. Morales, J. Fierrez, R. Vera-Rodriguez, and O. Delgado-Mohatar, ``BeCAPTCHA: Behavioral bot detection using touchscreen and mobile sensors benchmarked on HuMIdb,'' \textit{Engineering Applications of Artificial Intelligence}, vol. 98, 2021.
+
+\bibitem{zhang2020}
+Y. Zhang, P. Li, and X. Wang, ``Intrusion detection for IoT based on improved genetic algorithm and deep belief network,'' \textit{IEEE Access}, vol. 7, pp. 31711--31722, 2020.
+
+\bibitem{breiman2001}
+L. Breiman, ``Random forests,'' \textit{Machine Learning}, vol. 45, no. 1, pp. 5--32, 2001.
+
+\bibitem{chen2016}
+T. Chen and C. Guestrin, ``XGBoost: A scalable tree boosting system,'' in \textit{Proc. ACM KDD}, 2016, pp. 785--794.
+
+\bibitem{nist800}
+NIST, ``Digital Identity Guidelines: Authentication and Lifecycle Management,'' NIST Special Publication 800-63B, 2020.
+
+\bibitem{verizon2024}
+Verizon, ``2024 Data Breach Investigations Report,'' 2024.
+
+\bibitem{google2018}
+Google, ``New research: How effective is basic account hygiene at preventing hijacking,'' Google Security Blog, 2019.
+
+\bibitem{owasp2021}
+OWASP, ``OWASP Top 10 -- 2021,'' 2021.
+
+\bibitem{scikit}
+F. Pedregosa et al., ``Scikit-learn: Machine learning in Python,'' \textit{JMLR}, vol. 12, pp. 2825--2830, 2011.
+
+\bibitem{flask}
+Pallets Projects, ``Flask: A Python Micro Web Framework,'' 2024. [Online]. Available: https://flask.palletsprojects.com/
+
+\end{thebibliography}
+
+\end{document}

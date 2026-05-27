@@ -9,7 +9,7 @@
     "model": "RandomForestClassifier",
     "n_estimators": 200,
     "max_depth": 18,
-    "train_time_seconds": 0.753
+    "train_time_seconds": 1.036
   },
   "accuracy": 0.9445,
   "precision": {
@@ -603,10 +603,10 @@
   "classification_report": "              precision    recall  f1-score   support\n\n        Safe       0.94      0.99      0.97      1567\n        Risk       0.95      0.78      0.86       433\n\n    accuracy                           0.94      2000\n   macro avg       0.95      0.89      0.91      2000\nweighted avg       0.94      0.94      0.94      2000\n",
   "inference_speed": {
     "samples": 500,
-    "median_ms": 27.4947,
-    "p95_ms": 69.7751,
-    "p99_ms": 74.8245,
-    "mean_ms": 36.5525
+    "median_ms": 55.3294,
+    "p95_ms": 210.9815,
+    "p99_ms": 311.098,
+    "mean_ms": 85.0316
   },
-  "total_evaluation_time_seconds": 33.95
+  "total_evaluation_time_seconds": 85.83
 }

@@ -1,6 +1,6 @@
 # Adaptive Authentication System — Evaluation Report
 
-**Generated:** 2026-03-24 22:10:42
+**Generated:** 2026-05-26 22:03:26
 **Model:** Random Forest Classifier (200 trees, max_depth=18)
 
 ---
@@ -22,7 +22,7 @@
 - **Accuracy:** 0.9445
 - **ROC-AUC:** 0.9019
 - **PR-AUC:** 0.8565
-- **Training time:** 0.753s
+- **Training time:** 1.036s
 
 ### Cross-Validation
 
@@ -58,9 +58,9 @@
 | 0.8 | 0.9225 | 0.9603 | 0.6697 | 0.7891 |
 
 ### Inference Speed
-- Median: **27.495 ms**
-- p95: **69.775 ms**
-- p99: **74.825 ms**
+- Median: **55.329 ms**
+- p95: **210.982 ms**
+- p99: **311.098 ms**
 
 ---
 ## 2. Security Evaluation
@@ -94,19 +94,19 @@
 
 ### Single-Thread Inference
 - Iterations: **1000**
-- Median: **26.7501 ms**
-- p95: **28.3072 ms**
-- p99: **31.5348 ms**
-- Throughput: **37.0 pred/s**
+- Median: **42.679 ms**
+- p95: **60.1493 ms**
+- p99: **70.3905 ms**
+- Throughput: **21.9 pred/s**
 
 ### Concurrent Load Test
 
 | Threads | Requests | Time (s) | Throughput | Median (ms) | p99 (ms) |
 |---------|----------|----------|------------|-------------|----------|
-| 5 | 250 | 5.454 | 45.8/s | 106.4568 | 171.5531 |
-| 10 | 500 | 11.074 | 45.2/s | 182.0181 | 631.7909 |
-| 25 | 1250 | 28.124 | 44.4/s | 399.6247 | 2411.9239 |
-| 50 | 2500 | 61.367 | 40.7/s | 862.0491 | 5702.0387 |
+| 5 | 250 | 6.264 | 39.9/s | 117.642 | 225.6875 |
+| 10 | 500 | 13.819 | 36.2/s | 222.9976 | 816.8399 |
+| 25 | 1250 | 40.411 | 30.9/s | 601.4646 | 3426.0125 |
+| 50 | 2500 | 78.579 | 31.8/s | 1102.0886 | 6682.1576 |
 
 ---
 ## 4. Generated Charts
