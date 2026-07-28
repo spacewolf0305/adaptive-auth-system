@@ -91,7 +91,7 @@ Fig.~\ref{fig:pipeline} illustrates the authentication flow:
 \item Three-tier decision engine applies thresholds:
 \begin{itemize}
 \item $r < \theta_1$ (0.3): \textbf{ALLOW} --- immediate access.
-\item $\theta_1 \leq r < \theta_2$ (0.7): \textbf{MFA} --- TOTP challenge.
+\item $\theta_1 \leq r < \theta_2$ (0.7): \textbf{MFA} --- SMS OTP challenge.
 \item $r \geq \theta_2$: \textbf{BLOCK} --- access denied, IP rate-limited.
 \end{itemize}
 \item Decision, risk score, and contributing factors are logged.
@@ -99,7 +99,7 @@ Fig.~\ref{fig:pipeline} illustrates the authentication flow:
 
 \subsection{Database Schema}
 
-The system uses four primary tables: \texttt{User} (credentials, TOTP secrets), \texttt{LoginLog} (audit trail with risk scores), \texttt{Plan} (subscription tiers), and \texttt{APIKey} (key management with usage tracking).
+The system uses four primary tables: \texttt{User} (credentials, MFA secrets), \texttt{LoginLog} (audit trail with risk scores), \texttt{Plan} (subscription tiers), and \texttt{APIKey} (key management with usage tracking).
 
 % =====================================================================
 \section{Machine Learning Model}
@@ -122,7 +122,7 @@ Each login attempt is characterized by seven features, summarized in Table~\ref{
 3 & Hour of Day & Numerical & Temporal pattern \\
 4 & Device Type & Categorical & Device fingerprint \\
 5 & Prev. Login Success & Binary & Account history \\
-6 & Threat Score & Numerical & IP reputation (0--100) \\
+6 & Threat Score & Numerical & Network Profile IP reputation (0--100) \\
 7 & Distance (km) & Numerical & Impossible travel \\
 \bottomrule
 \end{tabular}

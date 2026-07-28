@@ -96,7 +96,7 @@ The authentication flow operates as follows:
 \text{Decision}(r) =
 \begin{cases}
 \text{ALLOW}, & r < 0.3 \\
-\text{MFA (TOTP challenge)}, & 0.3 \le r < 0.7 \\
+\text{MFA (e.g., SMS OTP challenge)}, & 0.3 \le r < 0.7 \\
 \text{BLOCK (deny + rate-limit)}, & r \ge 0.7
 \end{cases}
 \end{equation}
@@ -109,7 +109,7 @@ We consider an adversary whose goal is to obtain authenticated access using \tex
 
 We assume the following adversary capabilities: (C1) knowledge of the victim's credentials; (C2) the ability to originate requests from arbitrary IP addresses and geographic locations, including via VPNs and proxies; (C3) the ability to spoof coarse device fingerprints such as user-agent and device type; and (C4) no knowledge of the victim's historical login timing or of the deployed model's parameters.
 
-The contextual features are intended to raise the cost of these capabilities to differing degrees. Location and distance features (Country, Region, Distance) resist C2 by requiring the attacker to additionally co-locate with, or accurately mimic, the victim's usual geography. Threat Score (IP reputation) resists C2 when the attacker reuses flagged infrastructure but degrades against clean residential proxies. Temporal features (Hour of Day) resist C4, since the attacker lacks the victim's timing distribution. Device features offer only limited resistance under C3. The system does \textit{not} defend against an adversary who fully replicates the victim's context---same location, device, and timing---which constitutes the residual risk that richer behavioral biometrics (see Limitations) would be needed to address.
+The contextual features are intended to raise the cost of these capabilities to differing degrees. Location and distance features (Country, Region, Distance) resist C2 by requiring the attacker to additionally co-locate with, or accurately mimic, the victim's usual geography. Threat Score (based on Network Profiles such as Tor Exit Nodes, VPNs, or Residential IPs) resists C2 when the attacker reuses flagged infrastructure but degrades against clean residential proxies. Temporal features (Hour of Day) resist C4, since the attacker lacks the victim's timing distribution. Device features offer only limited resistance under C3. The system does \textit{not} defend against an adversary who fully replicates the victim's context---same location, device, and timing---which constitutes the residual risk that richer behavioral biometrics (see Limitations) would be needed to address.
 
 \section{Machine Learning Model}
 \subsection{Feature Engineering}
@@ -128,7 +128,7 @@ Each login attempt is characterized by seven features, summarized in Table \ref{
 3 & Hour of Day & Numerical & Temporal pattern \\
 4 & Device Type & Categorical & Device fingerprint \\
 5 & Prev. Login & Binary & Account history \\
-6 & Threat Score & Numerical & IP reputation (0--100) \\
+6 & Threat Score & Numerical & Network Profile IP Reputation (0--100) \\
 7 & Distance (km) & Numerical & Impossible travel \\
 \bottomrule
 \end{tabular}
