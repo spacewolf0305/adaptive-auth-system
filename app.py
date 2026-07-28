@@ -193,10 +193,14 @@ def _calc_distance(country: str, user_id: int) -> float:
     return round(_haversine(prev[0], prev[1], curr[0], curr[1]), 2)
 
 
-def _simulate_threat_score(ip: str) -> int:
-    """Generate a simulated threat score. In production, call an external feed."""
+def _simulate_threat_score(ip: str, country: str) -> int:
+    """Simulate a threat intel feed based on geographic risk."""
+    high_risk_countries = {"North Korea", "Russia", "Iran", "Syria", "Somalia", "Afghanistan", "Iraq", "Yemen"}
     random.seed(hash(ip) % (2**32))
-    return random.randint(0, 100)
+    if country in high_risk_countries:
+        return random.randint(85, 100)
+    else:
+        return random.randint(0, 20)
 
 
 def _detect_device(user_agent: str) -> str:
@@ -323,7 +327,7 @@ def login_page():
     # -- Step 2: Feature Extraction --
     device = sim_device or _detect_device(request.user_agent.string)
     distance = float(sim_dist) if sim_dist else _calc_distance(geo["country"], user.id)
-    threat = int(sim_threat) if sim_threat else _simulate_threat_score(ip)
+    threat = int(sim_threat) if sim_threat else _simulate_threat_score(ip, geo["country"])
 
     last_log = (LoginLog.query.filter_by(user_id=user.id)
                 .order_by(LoginLog.timestamp.desc()).first())
