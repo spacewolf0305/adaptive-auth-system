@@ -50,10 +50,10 @@ class IEEEPaper(FPDF):
         self.ln(8)
         # Author
         self.set_font("Helvetica", "", 12)
-        self.cell(0, 6, "Satwik Basu", align="C", new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 6, "Satwik Basu (100751), Dr. Sreevani, Dr. Praveen Lalwani, Dr. Pushpinder Singh Patheja", align="C", new_x="LMARGIN", new_y="NEXT")
         self.set_font("Helvetica", "I", 10)
-        self.cell(0, 5, "VIT Bhopal University", align="C", new_x="LMARGIN", new_y="NEXT")
-        self.cell(0, 5, "Pune, India", align="C", new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 5, "School of Computing Science Engineering and Artificial Intelligence", align="C", new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 5, "VIT Bhopal University, Madhya Pradesh, India", align="C", new_x="LMARGIN", new_y="NEXT")
         self.cell(0, 5, "satwikbasu03@gmail.com", align="C", new_x="LMARGIN", new_y="NEXT")
         self.ln(10)
         # Abstract box
