@@ -256,9 +256,9 @@ def build():
     pdf.subsection("B. Authentication Pipeline")
     pdf.para("The authentication flow operates as follows:")
     pdf.bullet("User submits credentials (username + password).")
-    pdf.bullet("System extracts 7 contextual features from the request.")
+    pdf.bullet("System extracts contextual features and automatically queries a simulated Threat Intelligence feed analyzing the IP address (e.g., detecting Tor Exit Nodes or Commercial VPNs) to retrieve a Threat Score.")
     pdf.bullet("Random Forest model computes risk score r in [0.0, 1.0].")
-    pdf.bullet("Three-tier decision: r < 0.3 = ALLOW, 0.3 <= r < 0.7 = MFA (TOTP challenge), r >= 0.7 = BLOCK (access denied + IP rate-limited).")
+    pdf.bullet("Three-tier decision: r < 0.3 = ALLOW, 0.3 <= r < 0.7 = MFA (e.g., SMS OTP challenge), r >= 0.7 = BLOCK (access denied + IP rate-limited).")
     pdf.bullet("Decision, risk score, and contributing factors are logged for audit.")
 
     pdf.subsection("C. Database Schema")
@@ -279,7 +279,7 @@ def build():
             ["3", "Hour of Day", "Numerical", "Temporal pattern"],
             ["4", "Device Type", "Categorical", "Device fingerprint"],
             ["5", "Prev. Login", "Binary", "Account history"],
-            ["6", "Threat Score", "Numerical", "IP reputation (0-100)"],
+            ["6", "Threat Score", "Numerical", "Network Profile IP Reputation (0-100)"],
             ["7", "Distance (km)", "Numerical", "Impossible travel"],
         ],
         title="Table I: Feature Set for Risk Assessment",
@@ -473,8 +473,8 @@ def build():
     pdf.subsection("B. Limitations")
     pdf.para(
         "We acknowledge several limitations: (1) synthetic training data may not capture all real-world "
-        "behavioral patterns; (2) IP threat scores are simulated and would require integration with "
-        "services like AbuseIPDB or VirusTotal in production; (3) the feature set is limited to seven "
+        "behavioral patterns; (2) IP threat scores currently use simplified Network Profiles (Residential, VPN, Tor) and would require full integration with "
+        "services like CrowdStrike or AbuseIPDB in production; (3) the feature set is limited to seven "
         "features -- behavioral biometrics (keystroke dynamics, mouse movement) would strengthen "
         "discrimination; (4) the Random Forest model does not capture temporal dependencies in login "
         "sequences, which LSTM or Transformer architectures could address."

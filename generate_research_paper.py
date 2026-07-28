@@ -438,7 +438,7 @@ def build_paper():
             ["Hour of Day", "Integer", "UTC timestamp", "0 - 23"],
             ["Device Type", "Categorical", "User-Agent parsing", "5 types"],
             ["Prev Login Success", "Binary", "Last login log query", "0 or 1"],
-            ["Threat Score", "Integer", "IP reputation (simulated)", "0 - 100"],
+            ["Threat Score", "Integer", "Network Profile IP reputation", "0 - 100"],
             ["Distance (km)", "Float", "Haversine from last login", "0 - 20,000"],
         ],
         [42, 28, 60, 42],
@@ -453,7 +453,7 @@ def build_paper():
         ["Risk Range", "Action", "User Experience", "HTTP Code"],
         [
             ["0.0 - 0.3", "ALLOW", "Instant access to dashboard", "302"],
-            ["0.3 - 0.7", "MFA", "TOTP 6-digit code challenge", "302"],
+            ["0.3 - 0.7", "MFA", "Step-up OTP challenge (e.g. SMS)", "302"],
             ["0.7 - 1.0", "BLOCK", "Access denied, logged + rate-limited", "403"],
         ],
         [25, 22, 105, 30],

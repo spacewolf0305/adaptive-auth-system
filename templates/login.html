@@ -273,8 +273,20 @@
         <p class="subtitle">Simulate a login from any location to test the AI</p>
 
         <form id="attackForm" onsubmit="return sendAttack(event)">
-            <label>Spoofed IP Address</label>
-            <input type="text" id="atk_ip" placeholder="185.220.101.42" value="">
+            <div class="row">
+                <div>
+                    <label>Network Profile</label>
+                    <select id="atk_network" onchange="updateNetworkProfile()">
+                        <option value="clean">🏠 Residential (Clean IP)</option>
+                        <option value="vpn">🛡️ Commercial VPN / Proxy</option>
+                        <option value="tor">🧅 Known Tor Exit Node</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Spoofed IP Address</label>
+                    <input type="text" id="atk_ip" placeholder="185.220.101.42" value="">
+                </div>
+            </div>
 
             <div class="row">
                 <div>
@@ -529,10 +541,23 @@
         // Set a random IP on load
         document.getElementById('atk_ip').value = randIP();
 
+        function updateNetworkProfile() {
+            const profile = document.getElementById('atk_network').value;
+            const ipField = document.getElementById('atk_ip');
+            if (profile === 'tor') {
+                ipField.value = '185.220.101.50';
+            } else if (profile === 'vpn') {
+                ipField.value = '104.28.19.22';
+            } else {
+                ipField.value = randIP();
+            }
+        }
+
         const COUNTRIES = ['Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina', 'Armenia', 'Australia', 'Austria', 'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium', 'Belize', 'Benin', 'Bhutan', 'Bolivia', 'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei', 'Bulgaria', 'Burkina Faso', 'Burundi', 'Cabo Verde', 'Cambodia', 'Cameroon', 'Canada', 'Central African Republic', 'Chad', 'Chile', 'China', 'Colombia', 'Comoros', 'Congo', 'Costa Rica', 'Croatia', 'Cuba', 'Cyprus', 'Czech Republic', 'Denmark', 'Djibouti', 'Dominica', 'Dominican Republic', 'East Timor', 'Ecuador', 'Egypt', 'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Eswatini', 'Ethiopia', 'Fiji', 'Finland', 'France', 'Gabon', 'Gambia', 'Georgia', 'Germany', 'Ghana', 'Greece', 'Grenada', 'Guatemala', 'Guinea', 'Guinea-Bissau', 'Guyana', 'Haiti', 'Honduras', 'Hungary', 'Iceland', 'India', 'Indonesia', 'Iran', 'Iraq', 'Ireland', 'Israel', 'Italy', 'Jamaica', 'Japan', 'Jordan', 'Kazakhstan', 'Kenya', 'Kiribati', 'Kuwait', 'Kyrgyzstan', 'Laos', 'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya', 'Liechtenstein', 'Lithuania', 'Luxembourg', 'Madagascar', 'Malawi', 'Malaysia', 'Maldives', 'Mali', 'Malta', 'Marshall Islands', 'Mauritania', 'Mauritius', 'Mexico', 'Micronesia', 'Moldova', 'Monaco', 'Mongolia', 'Montenegro', 'Morocco', 'Mozambique', 'Myanmar', 'Namibia', 'Nauru', 'Nepal', 'Netherlands', 'New Zealand', 'Nicaragua', 'Niger', 'Nigeria', 'North Korea', 'North Macedonia', 'Norway', 'Oman', 'Pakistan', 'Palau', 'Palestine', 'Panama', 'Papua New Guinea', 'Paraguay', 'Peru', 'Philippines', 'Poland', 'Portugal', 'Qatar', 'Romania', 'Russia', 'Rwanda', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent', 'Samoa', 'San Marino', 'Sao Tome and Principe', 'Saudi Arabia', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leone', 'Singapore', 'Slovakia', 'Slovenia', 'Solomon Islands', 'Somalia', 'South Africa', 'South Korea', 'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Sweden', 'Switzerland', 'Syria', 'Taiwan', 'Tajikistan', 'Tanzania', 'Thailand', 'Togo', 'Tonga', 'Trinidad and Tobago', 'Tunisia', 'Turkey', 'Turkmenistan', 'Tuvalu', 'Uganda', 'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States', 'Uruguay', 'Uzbekistan', 'Vanuatu', 'Vatican City', 'Venezuela', 'Vietnam', 'Yemen', 'Zambia', 'Zimbabwe', 'Kosovo', 'Ivory Coast', 'DR Congo', 'Hong Kong', 'Macau', 'Puerto Rico'];
         const DEVICES = ["desktop", "mobile", "tablet", "iot_device", "smart_tv"];
 
         function randomizeAttack() {
+            document.getElementById('atk_network').value = 'clean';
             document.getElementById('atk_ip').value = randIP();
             const sel = document.getElementById('atk_country');
             sel.value = COUNTRIES[randInt(0, COUNTRIES.length - 1)];
@@ -555,12 +580,12 @@
             form.append('sim_region', 'Simulated');
             form.append('sim_device', document.getElementById('atk_device').value);
             form.append('sim_distance', document.getElementById('atk_distance').value);
+            form.append('sim_mode', '1');
 
             try {
                 const resp = await fetch('/login', {
                     method: 'POST',
-                    body: form,
-                    redirect: 'manual'  // don't follow redirects
+                    body: form
                 });
 
                 const box = document.getElementById('resultBox');
@@ -572,21 +597,28 @@
                 const country = document.getElementById('atk_country').value;
                 const dist = document.getElementById('atk_distance').value;
 
-                if (resp.status === 403) {
+                let data;
+                try {
+                    data = await resp.json();
+                } catch (e) {
+                    data = { action: 'UNKNOWN', risk: 0 };
+                }
+
+                if (data.action === 'BLOCK' || data.action === 'RATE_LIMITED') {
                     label.innerHTML = '🔴 BLOCKED';
                     label.style.color = '#ef4444';
                     detail.innerHTML = `The AI flagged this as <b>high risk</b> and blocked the login.<br>
                         IP: ${ip} | Country: ${country}<br>
                         Threat: [Auto-Detected] | Distance: ${dist} km`;
-                } else if (resp.status === 0 || resp.type === 'opaqueredirect') {
-                    // redirect = could be MFA or ALLOW
-                    label.innerHTML = '🟡 MFA or 🟢 ALLOW';
+                } else if (data.action === 'MFA') {
+                    label.innerHTML = '🟡 MFA REQUIRED';
                     label.style.color = '#fbbf24';
-                    detail.innerHTML = `The server responded with a redirect (MFA challenge or allowed).<br>
-                        IP: ${ip} | Country: ${country}<br>
-                        Threat: [Auto-Detected] | Distance: ${dist} km<br>
-                        <b>Check the <a href="/dashboard" target="_blank">dashboard</a> for the exact action.</b>`;
-                } else if (resp.status === 401) {
+                    detail.innerHTML = `The AI detected unusual behavior and triggered a step-up authentication challenge.<br>
+                        <div style="background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); padding: 10px; border-radius: 8px; text-align: left; margin-top: 10px; color: #fde68a; font-size: 13px;">
+                            📱 <b>SMS OTP Sent</b><br>
+                            To complete this login, enter the 6-digit code just sent to the device ending in <b>**39</b>.
+                        </div>`;
+                } else if (data.action === 'DENIED') {
                     label.innerHTML = '🟠 DENIED';
                     label.style.color = '#f97316';
                     detail.innerHTML = `Wrong credentials — login denied.<br>

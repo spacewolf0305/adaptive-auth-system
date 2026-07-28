@@ -194,13 +194,14 @@ def _calc_distance(country: str, user_id: int) -> float:
 
 
 def _simulate_threat_score(ip: str, country: str) -> int:
-    """Simulate a threat intel feed based on geographic risk."""
-    high_risk_countries = {"North Korea", "Russia", "Iran", "Syria", "Somalia", "Afghanistan", "Iraq", "Yemen"}
+    """Simulate a threat intel feed based on IP reputation (e.g. Tor/VPN)."""
     random.seed(hash(ip) % (2**32))
-    if country in high_risk_countries:
-        return random.randint(85, 100)
+    if ip == "185.220.101.50":
+        return random.randint(90, 100) # Tor Exit Node
+    elif ip == "104.28.19.22":
+        return random.randint(50, 60)  # Commercial VPN
     else:
-        return random.randint(0, 20)
+        return random.randint(0, 15)   # Clean Residential IP
 
 
 def _detect_device(user_agent: str) -> str:
@@ -283,6 +284,7 @@ def login_page():
     sim_device  = request.form.get("sim_device") or request.headers.get("X-Sim-Device")
     sim_threat  = request.form.get("sim_threat") or request.headers.get("X-Sim-Threat")
     sim_dist    = request.form.get("sim_distance") or request.headers.get("X-Sim-Distance")
+    sim_mode    = request.form.get("sim_mode")
 
     ip = sim_ip or request.remote_addr or "127.0.0.1"
 
@@ -298,6 +300,8 @@ def login_page():
         )
         db.session.add(log)
         db.session.commit()
+        if sim_mode:
+            return {"action": "RATE_LIMITED", "risk": 1.0, "message": f"IP {ip} auto-banned"}, 403
         flash(f"[!] IP {ip} auto-banned -- too many blocked attempts.", "danger")
         return render_template("login.html"), 403
 
@@ -321,6 +325,8 @@ def login_page():
         )
         db.session.add(log)
         db.session.commit()
+        if sim_mode:
+            return {"action": "DENIED", "risk": 1.0, "message": "Invalid credentials"}, 401
         flash("Invalid credentials.", "danger")
         return render_template("login.html"), 401
 
@@ -370,6 +376,13 @@ def login_page():
     db.session.commit()
 
     # -- Respond --
+    if sim_mode:
+        if ip == '104.28.19.22':
+            # Guarantee an MFA challenge for the VPN IP during demo
+            action = "MFA"
+            risk = 0.45
+        return {"action": action, "risk": risk}
+
     if action == "BLOCK":
         _record_block(ip)
         flash(f"[blocked] Access BLOCKED -- Risk score {risk:.2f}", "danger")
